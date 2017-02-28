@@ -97,6 +97,8 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
 
 object KafkaOffsetGetter extends Logging {
 
+  val sleepAfterFailureMillis: Long = 5000;
+
   val kafkaOffsetLogsizeGroup = "kafka-monitor-logsize"
   val kafkaOffsetCommitsGroup = "kafka-monitor-commits"
   val kafkaOffsetTopic = "__consumer_offsets"
@@ -129,7 +131,6 @@ object KafkaOffsetGetter extends Logging {
 
   private def createNewAdminClient(args: OffsetGetterArgs): AdminClient = {
 
-    val sleepAfterFailedAdminClientConnect: Int = 30000
     var adminClient: AdminClient = null
 
     val props: Properties = new Properties
@@ -152,6 +153,7 @@ object KafkaOffsetGetter extends Logging {
               case ex: Throwable => ()
             }
             adminClient = null
+            Thread.sleep(sleepAfterFailureMillis)
           }
       }
     }
@@ -253,6 +255,7 @@ object KafkaOffsetGetter extends Logging {
               case ex: Throwable => ()
             }
             offsetConsumer = null
+            Thread.sleep(sleepAfterFailureMillis)
           }
         }
       }
@@ -262,7 +265,6 @@ object KafkaOffsetGetter extends Logging {
   def startAdminClient(args: OffsetGetterArgs) = {
 
     val sleepDurationMillis: Int = 30000
-    val awaitForResults: Int = 30000
     var adminClient: AdminClient = null
 
     while (true) {
@@ -324,17 +326,6 @@ object KafkaOffsetGetter extends Logging {
 
         Thread.sleep(sleepDurationMillis)
       } catch {
-        case ex: java.util.concurrent.TimeoutException => {
-          warn("The AdminClient timed out, closing and restarting")
-          if (adminClient != null) {
-            try {
-              adminClient.close()
-            } catch {
-              case ex: Throwable => ()
-            }
-            adminClient = null
-          }
-        }
         case e: Throwable =>
           error("Kafka AdminClient processing aborted due to an unexpected exception, closing and restarting", e)
           if (null != adminClient) {
@@ -344,6 +335,7 @@ object KafkaOffsetGetter extends Logging {
               case ex: Throwable => ()
             }
             adminClient = null
+            Thread.sleep(sleepAfterFailureMillis)
           }
       }
     }
@@ -387,6 +379,7 @@ object KafkaOffsetGetter extends Logging {
               case ex: Throwable => ()
             }
             logsizeKafkaConsumer = null
+            Thread.sleep(sleepAfterFailureMillis)
           }
         }
       }
