@@ -2,7 +2,7 @@ package com.quantifind.kafka.offsetapp
 
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 
-import com.quantifind.kafka.OffsetGetter
+import com.quantifind.kafka.{OffsetGetter, TopicDetails}
 import com.quantifind.kafka.OffsetGetter.KafkaInfo
 import com.quantifind.kafka.offsetapp.sqlite.SQLiteOffsetInfoReporter
 import com.quantifind.sumac.validation.Required
@@ -32,8 +32,6 @@ class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
   var dbName: String = "offsetapp"
 
   lazy val db = new OffsetDB(dbName)
-
-  var pluginsArgs: String = _
 }
 
 /**
@@ -53,17 +51,6 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
   var dbReporter: SQLiteOffsetInfoReporter = null
 
-  def retryTask[T](fn: => T) {
-    try {
-      retry(3) {
-        fn
-      }
-    } catch {
-      case NonFatal(e) =>
-        error("Failed to run scheduled task", e)
-    }
-  }
-
   def reportOffsets(args: OWArgs) {
     val groups = getGroups(args)
     groups.foreach {
@@ -77,15 +64,16 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
   }
 
   def schedule(args: OWArgs) {
-    scheduler.scheduleAtFixedRate(() => {
-      reportOffsets(args)
-    }, 0, args.refresh.toMillis, TimeUnit.MILLISECONDS)
+    scheduler.scheduleAtFixedRate(() => {reportOffsets(args)}, 0, args.refresh.toMillis, TimeUnit.MILLISECONDS)
   }
 
+  // -------------------------------------------------------------------------------------------------------------------
+  // proxy operation to the real implementation of OffsetGetter
   def withOG[T](args: OWArgs)(f: OffsetGetter => T): T = {
     var og: OffsetGetter = null
     try {
-      f(OffsetGetter.getInstance(args))
+      val offsetGetter: OffsetGetter = OffsetGetter.getInstance(args)
+      f(offsetGetter)
     } finally {
       // ignored
     }
@@ -119,6 +107,8 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     _.getClusterViz
   }
 
+  // -------------------------------------------------------------------------------------------------------------------
+
   /**
     * Custom serializer Scala Time <-> epoch time
     */
@@ -134,13 +124,16 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     args.db.maybeCreate()
     dbReporter = new SQLiteOffsetInfoReporter(args.db, args)
 
+    // launch automatic Kafka state tracking
+    schedule(args)
+
     // converting Scala datatypes to JSON format
     implicit val formats = Serialization.formats(NoTypeHints) + new TimeSerializer
-
     // define web application mapping
     def intent: Plan.Intent = {
       case GET(Path(Seg("group" :: Nil))) =>
-        JsonContent ~> ResponseString(write(getGroups(args)))
+        val groups: Seq[String] = getGroups(args)
+        JsonContent ~> ResponseString(write(groups))
 
       case GET(Path(Seg("group" :: group :: Nil))) =>
         val info = getInfo(group, args)
@@ -151,22 +144,25 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         JsonContent ~> ResponseString(write(offsets)) ~> Ok
 
       case GET(Path(Seg("topiclist" :: Nil))) =>
-        JsonContent ~> ResponseString(write(getTopics(args)))
+        val topics: Seq[String] = getTopics(args)
+        JsonContent ~> ResponseString(write(topics))
 
       case GET(Path(Seg("clusterlist" :: Nil))) =>
-        JsonContent ~> ResponseString(write(getClusterViz(args)))
+        val node = getClusterViz(args)
+        JsonContent ~> ResponseString(write(node))
 
       case GET(Path(Seg("topicdetails" :: topic :: Nil))) =>
-        JsonContent ~> ResponseString(write(getTopicDetail(topic, args)))
+        val topicDetails : TopicDetails = getTopicDetail(topic, args)
+        JsonContent ~> ResponseString(write(topicDetails))
 
       case GET(Path(Seg("topic" :: topic :: "consumer" :: Nil))) =>
-        JsonContent ~> ResponseString(write(getTopicAndConsumersDetail(topic, args)))
+        val topicAndConsumersDetails = getTopicAndConsumersDetail(topic, args)
+        JsonContent ~> ResponseString(write(topicAndConsumersDetails))
 
       case GET(Path(Seg("activetopics" :: Nil))) =>
-        JsonContent ~> ResponseString(write(getActiveTopics(args)))
+        val node = getActiveTopics(args)
+        JsonContent ~> ResponseString(write(node))
     }
-
-    schedule(args)
   }
 
   override def afterStop() {
