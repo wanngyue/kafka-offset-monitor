@@ -21,15 +21,14 @@ trait UnfilteredWebApp[T <: Arguments] extends ArgMain[T] {
   def afterStop() {}
 
   override def main(parsed: T) {
-    val root = getClass.getResource(htmlRoot)
-
     unfiltered.jetty.Server
       .portBinding(new SocketPortBinding(parsed.port, "0.0.0.0"))
       // whatever is not matched by our filter will be served from the resources folder (html, css, ...)
-      .resources(root)
+      .resources(getClass.getResource(htmlRoot))
       .plan(setup(parsed))
       .run(_ => afterStart(), _ => afterStop())
   }
+
 }
 
 object UnfilteredWebApp {

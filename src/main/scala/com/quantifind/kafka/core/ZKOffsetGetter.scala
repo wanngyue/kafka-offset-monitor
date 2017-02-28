@@ -23,8 +23,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
 
   override val zkUtils = theZkUtils
 
-  // get the Kafka simple consumer so that we can fetch broker offsets
-  protected def getConsumer(brokerId: Int): Option[SimpleConsumer] = {
+  private def getConsumer(brokerId: Int): Option[SimpleConsumer] = {
     try {
       zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + brokerId) match {
         case (Some(brokerInfoString), _) =>
@@ -58,8 +57,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
           consumerOpt map {
             consumer =>
               val topicAndPartition = TopicAndPartition(topic, partitionId)
-              val request =
-                OffsetRequest(immutable.Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
+              val request = OffsetRequest(immutable.Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
               val logSize = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
 
               KafkaOffsetInfo(
@@ -102,9 +100,6 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  /**
-    * Returns a map of topics -> list of consumers, including non-active
-    */
   override def getTopicToGroupsMap: Map[String, Seq[String]] = {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath).flatMap {
@@ -127,8 +122,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
         group =>
           try {
             zkUtils.getConsumersPerTopic(group, true).keySet.map {
-              key =>
-                key -> group
+              key => key -> group
             }
           } catch {
             case NonFatal(t) =>

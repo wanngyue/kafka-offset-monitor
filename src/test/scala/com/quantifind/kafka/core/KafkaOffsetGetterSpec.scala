@@ -43,8 +43,8 @@ class KafkaOffsetGetterSpec extends FlatSpec with ShouldMatchers {
     val groupTopicPartition = GroupTopicPartition(testGroup, new TopicPartition(testTopic, testPartition))
     val offsetAndMetadata = OffsetAndMetadata(committedOffset, "meta", System.currentTimeMillis)
 
-    KafkaOffsetGetter.committedOffsetMap += (groupTopicPartition -> offsetAndMetadata)
-    KafkaOffsetGetter.logEndOffsetsMap += (topicPartition -> logEndOffset)
+    KafkaOffsetGetter.kafkaGroupPartitionToOffsetMetadataMap += (groupTopicPartition -> offsetAndMetadata)
+    KafkaOffsetGetter.kafkaTopicPartitionToLogsizeMap += (topicPartition -> logEndOffset)
 
     when(mockedZkUtil.getLeaderForPartition(MockitoMatchers.eq(testTopic), MockitoMatchers.eq(testPartition)))
         .thenReturn(Some(testPartitionLeader))
