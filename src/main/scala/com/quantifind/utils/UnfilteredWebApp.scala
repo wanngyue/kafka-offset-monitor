@@ -5,8 +5,7 @@ import com.quantifind.sumac.{ArgMain, FieldArgs}
 import com.quantifind.utils.UnfilteredWebApp.Arguments
 
 /**
- * build up a little web app that serves static files from the resource directory
- * and other stuff from the provided plan
+ * Web app that serves static files from the resource directory and other stuff from the provided mapping
  * User: pierre
  * Date: 10/3/13
  */
@@ -22,9 +21,10 @@ trait UnfilteredWebApp[T <: Arguments] extends ArgMain[T] {
 
   override def main(parsed: T) {
     val root = getClass.getResource(htmlRoot)
-    println("serving resources from: " + root)
+
     unfiltered.jetty.Http(parsed.port)
-      .resources(root) //whatever is not matched by our filter will be served from the resources folder (html, css, ...)
+      // whatever is not matched by our filter will be served from the resources folder (html, css, ...)
+      .resources(root)
       .filter(setup(parsed))
       .run(_ => afterStart(), _ => afterStop())
   }
