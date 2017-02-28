@@ -105,7 +105,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
   /**
     * Returns a map of topics -> list of consumers, including non-active
     */
-  override def getTopicMap: Map[String, Seq[String]] = {
+  override def getTopicToGroupsMap: Map[String, Seq[String]] = {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath).flatMap {
         group => {
@@ -121,7 +121,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  override def getActiveTopicMap: Map[String, Seq[String]] = {
+  override def getActiveTopicToGroupsMap: Map[String, Seq[String]] = {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath).flatMap {
         group =>

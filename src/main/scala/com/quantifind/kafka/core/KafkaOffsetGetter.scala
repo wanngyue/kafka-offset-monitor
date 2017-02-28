@@ -1,6 +1,5 @@
 package com.quantifind.kafka.core
 
-import java.net.InetAddress
 import java.nio.{BufferUnderflowException, ByteBuffer}
 import java.util
 import java.util.{Arrays, Properties}
@@ -8,7 +7,7 @@ import java.util.{Arrays, Properties}
 import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.kafka.{Node, OffsetGetter}
-import com.quantifind.utils.{Utils, ZkUtilsWrapper}
+import com.quantifind.utils.{ZkUtilsWrapper}
 import com.quantifind.utils.Utils.convertKafkaHostToHostname
 import com.twitter.util.Time
 import kafka.admin.AdminClient
@@ -81,12 +80,12 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     topicAndGroups.filter(_.group == group).groupBy(_.topic).keySet.toList.sorted
   }
 
-  override def getTopicMap: Map[String, scala.Seq[String]] = {
+  override def getTopicToGroupsMap: Map[String, scala.Seq[String]] = {
     topicAndGroups.groupBy(_.topic).mapValues(_.map(_.group).toSeq)
   }
 
-  override def getActiveTopicMap: Map[String, Seq[String]] = {
-    getTopicMap
+  override def getActiveTopicToGroupsMap: Map[String, Seq[String]] = {
+    getTopicToGroupsMap
   }
 
   override def getKafkaTopics: Seq[String] = {

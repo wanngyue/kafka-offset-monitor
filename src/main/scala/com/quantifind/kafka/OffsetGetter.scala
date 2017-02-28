@@ -24,8 +24,6 @@ case class TopicDetailsWrapper(consumers: TopicDetails)
 
 case class TopicAndConsumersDetails(active: Seq[KafkaGroupInfo], inactive: Seq[KafkaGroupInfo])
 
-case class TopicAndConsumersDetailsWrapper(consumers: TopicAndConsumersDetails)
-
 case class ConsumerDetail(name: String)
 
 /**
@@ -39,20 +37,22 @@ trait OffsetGetter extends Logging {
 
   /**
     * Get list of Kafka groups ever existed
+    *
     * @return
     */
   def getKafkaGroups: Seq[String]
 
   /**
     * Get list of Kafka topics ever existed for the given consumer group
+    *
     * @param group
     * @return
     */
   def getKafkaTopicList(group: String): List[String]
 
-  def getTopicMap: Map[String, Seq[String]]
+  def getTopicToGroupsMap: Map[String, Seq[String]]
 
-  def getActiveTopicMap: Map[String, Seq[String]]
+  def getActiveTopicToGroupsMap: Map[String, Seq[String]]
 
   /**
     * get information about a consumer group and the topics it consumes
@@ -118,12 +118,12 @@ trait OffsetGetter extends Logging {
     * Returns details for a given topic such as the consumers pulling off of it
     */
   def getKafkaTopicDetails(topic: String): TopicDetails = {
-    val topicMap = getActiveTopicMap
+    val topicMap = getActiveTopicToGroupsMap
 
     if (topicMap.contains(topic)) {
       TopicDetails(topicMap(topic).map(consumer => {
         ConsumerDetail(consumer.toString)
-      }).toSeq)
+      }))
     } else {
       TopicDetails(Seq(ConsumerDetail("Unable to find Active Consumers")))
     }
@@ -133,32 +133,34 @@ trait OffsetGetter extends Logging {
     * Returns details for a given topic such as the active consumers pulling off of it
     * and for each of the active consumers it will return the consumer data
     */
-  def getKafkaTopicAndConsumersDetails(topic: String): TopicAndConsumersDetailsWrapper = {
-    val topicMap = getTopicMap
-    val activeTopicMap = getActiveTopicMap
+  def getKafkaTopicAndConsumersDetails(topic: String): TopicAndConsumersDetails = {
+    val topicToGroupsMap = getTopicToGroupsMap
+    val activeTopicToGroupsMap = getActiveTopicToGroupsMap
 
     def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
       consumers.map(getKafkaGroupInfo(_, Seq(topic)))
 
-    val activeConsumers = if (activeTopicMap.contains(topic)) {
-      mapConsumersToKafkaInfo(activeTopicMap(topic), topic)
-    } else {
-      Seq()
-    }
+    val activeConsumers =
+      if (activeTopicToGroupsMap.contains(topic)) {
+        mapConsumersToKafkaInfo(activeTopicToGroupsMap(topic), topic)
+      } else {
+        Seq()
+      }
 
-    val inactiveConsumers = if (!activeTopicMap.contains(topic) && topicMap.contains(topic)) {
-      mapConsumersToKafkaInfo(topicMap(topic), topic)
-    } else if (activeTopicMap.contains(topic) && topicMap.contains(topic)) {
-      mapConsumersToKafkaInfo(topicMap(topic).diff(activeTopicMap(topic)), topic)
-    } else {
-      Seq()
-    }
+    val inactiveConsumers =
+      if (!activeTopicToGroupsMap.contains(topic) && topicToGroupsMap.contains(topic)) {
+        mapConsumersToKafkaInfo(topicToGroupsMap(topic), topic)
+      } else if (activeTopicToGroupsMap.contains(topic) && topicToGroupsMap.contains(topic)) {
+        mapConsumersToKafkaInfo(topicToGroupsMap(topic).diff(activeTopicToGroupsMap(topic)), topic)
+      } else {
+        Seq()
+      }
 
-    TopicAndConsumersDetailsWrapper(TopicAndConsumersDetails(activeConsumers, inactiveConsumers))
+    TopicAndConsumersDetails(activeConsumers, inactiveConsumers)
   }
 
   def getKafkaActiveTopics: Node = {
-    val topicMap = getActiveTopicMap
+    val topicMap = getActiveTopicToGroupsMap
 
     Node("ActiveTopics", topicMap.map {
       case (s: String, ss: Seq[String]) => {
