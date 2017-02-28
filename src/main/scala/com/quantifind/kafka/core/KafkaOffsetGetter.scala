@@ -11,7 +11,7 @@ import com.quantifind.utils.{ZkUtilsWrapper}
 import com.quantifind.utils.Utils.convertKafkaHostToHostname
 import com.twitter.util.Time
 import kafka.admin.AdminClient
-import kafka.common.{KafkaException, OffsetAndMetadata, TopicAndPartition}
+import kafka.common.{KafkaException, OffsetAndMetadata, TopicAndPartition, OffsetMetadata}
 import kafka.coordinator._
 import kafka.utils.Logging
 import org.apache.kafka.clients.CommonClientConfigs
@@ -50,7 +50,12 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
       val logEndOffset: Option[Long] = logEndOffsetsMap.get(topicPartition)
       val committedOffset: Long = offsetMetaData.offset
       val lag: Long = logEndOffset.get - committedOffset
-      val logEndOffsetReported: Long = if (lag < 0) committedOffset - lag else logEndOffset.get
+      val logEndOffsetReported: Long =
+        if (lag < 0) {
+          committedOffset - lag
+        } else {
+          logEndOffset.get
+        }
 
       // Get client information if we can find an associated client
       var clientString: Option[String] = Option("NA")
@@ -291,16 +296,18 @@ object KafkaOffsetGetter extends Logging {
 
             val groupOverviews = adminClient.listAllConsumerGroupsFlattened()
             groupOverviews.foreach((groupOverview: GroupOverview) => {
-              val groupId: String = groupOverview.groupId;
-              val consumers: Option[List[AdminClient#ConsumerSummary]] = adminClient.describeConsumerGroup(groupId).consumers
+              val groupId = groupOverview.groupId;
+              val offsets: Map[TopicPartition, Long] = adminClient.listGroupOffsets(groupId)
+              val consumerGroupSummary = adminClient.describeConsumerGroup(groupId)
 
-              if (consumers.isDefined) {
-                consumers.get.foreach((consumerSummary) => {
+              if (consumerGroupSummary.state == "Stable") {
+                val consumers: Seq[AdminClient#ConsumerSummary] = adminClient.describeConsumerGroup(groupId).consumers.get
+                consumers.foreach((consumerSummary) => {
 
-                  val clientId: String = consumerSummary.clientId
-                  val clientHost: String = convertKafkaHostToHostname(consumerSummary.host)
+                  val clientId = consumerSummary.clientId
+                  val clientHost = convertKafkaHostToHostname(consumerSummary.host)
 
-                  val topicPartitions: List[TopicPartition] = consumerSummary.assignment
+                  val topicPartitions: Seq[TopicPartition] = consumerSummary.assignment
 
                   topicPartitions.foreach((topicPartition) => {
                     currentActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
@@ -309,10 +316,22 @@ object KafkaOffsetGetter extends Logging {
 
                   currentClients += KafkaClientGroup(groupId, clientId, clientHost, topicPartitions.toSet)
                 })
+
+              } else {
+                offsets.foreach {
+                  case (topicPartition, offset) => {
+                    committedOffsetMap.put(new GroupTopicPartition(groupId, topicPartition),new OffsetAndMetadata(new OffsetMetadata(offset = offset), 0, 0))
+                    logEndOffsetsMap.put(topicPartition, 0)
+
+                    currentActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
+                    currentTopicAndGroups += KafkaTopicGroup(topicPartition.topic(), groupId)
+                  }
+                }
+                currentClients += KafkaClientGroup(groupId, "", "", offsets.keys.toSet)
               }
             })
 
-            groups = (for (x <- groupOverviews) yield x.groupId)(collection.breakOut).toSet
+            groups = (for (x <- groupOverviews) yield x.groupId) (collection.breakOut).toSet
             activeTopicPartitions = currentActiveTopicPartitions.toSet
             clients = currentClients.toSet
             topicAndGroups = currentTopicAndGroups.toSet

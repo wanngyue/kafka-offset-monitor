@@ -20,7 +20,7 @@ object Utils {
       try {
         return InetAddress.getByName(kafkaHost.substring(1)).getHostName
       } catch {
-        case ex: Throwable => ()
+        case ex => ()
       }
     }
     return kafkaHost

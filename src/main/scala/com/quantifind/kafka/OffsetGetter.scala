@@ -55,42 +55,44 @@ trait OffsetGetter extends Logging {
   def getActiveTopicToGroupsMap: Map[String, Seq[String]]
 
   /**
-    * get information about a consumer group and the topics it consumes
+    * Get information about a consumer group and the topics it consumes
     */
   def getKafkaGroupInfo(group: String, topics: Seq[String] = Seq()): KafkaGroupInfo = {
+
     def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[KafkaOffsetInfo] = {
+
       def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
-        val pidMap = zkUtils.getPartitionsForTopics(Seq(topic))
+        val topicToPartitionsMap = zkUtils.getPartitionsForTopics(Seq(topic))
         for {
-          partitions <- pidMap.get(topic).toSeq
-          pid <- partitions.sorted
-          info <- processPartition(group, topic, pid)
+          partitions <- topicToPartitionsMap.get(topic).toSeq
+          partitionId <- partitions.sorted
+          info <- processPartition(group, topic, partitionId)
         } yield info
       }
 
-      val topicList = if (topics.isEmpty) {
-        getKafkaTopicList(group)
-      } else {
-        topics
-      }
+      val topicList =
+        if (topics.isEmpty) {
+          getKafkaTopicList(group)
+        } else {
+          topics
+        }
 
       topicList.sorted.flatMap(processTopic(group, _))
     }
 
-    def brokerInfo(): Iterable[KafkaBrokerInfo] = {
-      for {
-        (bid, consumerOpt) <- consumerMap
-        consumer <- consumerOpt
-      } yield KafkaBrokerInfo(id = bid, host = consumer.host, port = consumer.port)
+    def brokerInfo(): Seq[KafkaBrokerInfo] = {
+      consumerMap.toSeq map {
+        case (brokerId, consumer) => new KafkaBrokerInfo(id = brokerId, host = consumer.get.host, port = consumer.get.port)
+      }
     }
 
-    val offset = offsetInfo(group, topics)
-    val broker = brokerInfo()
+    val kafkaOffsetsInfo = offsetInfo(group, topics)
+    val kafkaBrokersInfo = brokerInfo()
 
     KafkaGroupInfo(
       group = group,
-      brokers = broker.toSeq,
-      offsets = offset
+      brokers = kafkaBrokersInfo,
+      offsets = kafkaOffsetsInfo
     )
   }
 
@@ -170,7 +172,7 @@ trait OffsetGetter extends Logging {
     }.toSeq)
   }
 
-  def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo]
+  def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo]
 
 }
 
