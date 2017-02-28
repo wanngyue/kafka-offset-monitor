@@ -53,7 +53,7 @@ object OffsetGetterApp extends ArgMain[OffsetGetterArgsWGT] {
     try {
       og = OffsetGetter.getInstance(args)
 
-      val i = og.getInfo(args.group, args.topics)
+      val i = og.getKafkaGroupInfo(args.group, args.topics)
 
       if (i.offsets.nonEmpty) {
         if (!args.onlyOffsets) {

@@ -4,7 +4,7 @@ import scala.slick.driver.SQLiteDriver.simple._
 import scala.slick.jdbc.JdbcBackend
 import scala.slick.jdbc.meta.MTable
 
-import com.quantifind.kafka.OffsetGetter.OffsetInfo
+import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetDB.{DbOffsetInfo, OffsetHistory, OffsetPoints}
 import com.twitter.util.Time
 
@@ -52,14 +52,14 @@ class OffsetDB(dbfile: String) {
 
   val offsets = TableQuery[Offset]
 
-  def insert(timestamp: Long, info: OffsetInfo) {
+  def insert(timestamp: Long, info: KafkaOffsetInfo) {
     database.withSession {
       implicit s =>
         offsets += DbOffsetInfo(timestamp = timestamp, offset = info)
     }
   }
 
-  def insertAll(info: IndexedSeq[OffsetInfo]) {
+  def insertAll(info: IndexedSeq[KafkaOffsetInfo]) {
     val now = System.currentTimeMillis
     database.withTransaction {
       implicit s =>
@@ -101,12 +101,12 @@ object OffsetDB {
 
   case class OffsetHistory(group: String, topic: String, offsets: Seq[OffsetPoints])
 
-  case class DbOffsetInfo(id: Option[Int] = None, timestamp: Long, offset: OffsetInfo)
+  case class DbOffsetInfo(id: Option[Int] = None, timestamp: Long, offset: KafkaOffsetInfo)
 
   object DbOffsetInfo {
     def parse(in: (Option[Int], String, String, Int, Long, Long, Option[String], Long, Time, Time)): DbOffsetInfo = {
       val (id, group, topic, partition, offset, logSize, owner, timestamp, creation, modified) = in
-      DbOffsetInfo(id, timestamp, OffsetInfo(group, topic, partition, offset, logSize, owner, creation, modified))
+      DbOffsetInfo(id, timestamp, KafkaOffsetInfo(group, topic, partition, offset, logSize, owner, creation, modified))
     }
 
     def unparse(in: DbOffsetInfo): Option[(Option[Int], String, String, Int, Long, Long, Option[String], Long, Time, Time)] = Some(

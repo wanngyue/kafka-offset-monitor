@@ -1,7 +1,7 @@
 package com.quantifind.kafka.core
 
 import com.quantifind.kafka.OffsetGetter
-import com.quantifind.kafka.OffsetGetter.OffsetInfo
+import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.utils.ZkUtilsWrapper
 import com.twitter.util.Time
 import kafka.api.{OffsetRequest, PartitionOffsetRequestInfo}
@@ -47,7 +47,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  override def processPartition(group: String, topic: String, pid: Int): Option[OffsetInfo] = {
+  override def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo] = {
     try {
       val (offset, stat: Stat) = zkUtils.readData(s"${ZkUtils.ConsumersPath}/$group/offsets/$topic/$pid")
       val (owner, _) = zkUtils.readDataMaybeNull(s"${ZkUtils.ConsumersPath}/$group/owners/$topic/$pid")
@@ -62,7 +62,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
                 OffsetRequest(immutable.Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
               val logSize = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
 
-              OffsetInfo(
+              KafkaOffsetInfo(
                 group = group,
                 topic = topic,
                 partition = pid,
@@ -83,7 +83,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  override def getGroups: Seq[String] = {
+  override def getKafkaGroups: Seq[String] = {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath)
     } catch {

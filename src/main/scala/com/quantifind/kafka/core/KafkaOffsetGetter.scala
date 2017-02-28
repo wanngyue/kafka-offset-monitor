@@ -5,7 +5,7 @@ import java.nio.{BufferUnderflowException, ByteBuffer}
 import java.util
 import java.util.{Arrays, Properties}
 
-import com.quantifind.kafka.OffsetGetter.OffsetInfo
+import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.kafka.{Node, OffsetGetter}
 import com.quantifind.utils.ZkUtilsWrapper
@@ -36,7 +36,7 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     */
   override val zkUtils = zkUtilsWrapper
 
-  override def processPartition(group: String, topic: String, partitionId: Int): Option[OffsetInfo] = {
+  override def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo] = {
 
     val topicPartition = new TopicPartition(topic, partitionId)
 
@@ -56,11 +56,11 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
       var clientString: Option[String] = Option("NA")
       val filteredClients = clients.filter(c => (c.group == group && c.topicPartitions.contains(topicPartition)))
       if (!filteredClients.isEmpty) {
-        val client: ClientGroup = filteredClients.head
+        val client: KafkaClientGroup = filteredClients.head
         clientString = Option(client.clientId + " / " + client.clientHost)
       }
 
-      OffsetInfo(
+      KafkaOffsetInfo(
         group = group,
         topic = topic,
         partition = partitionId,
@@ -72,8 +72,8 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     }
   }
 
-  override def getGroups: Seq[String] = {
-    topicAndGroups.groupBy(_.group).keySet.toSeq.sorted
+  override def getKafkaGroups: Seq[String] = {
+    groups.toSeq.sorted
   }
 
   override def getTopicList(group: String): List[String] = {
@@ -88,11 +88,11 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     getTopicMap
   }
 
-  override def getTopics: Seq[String] = {
+  override def getKafkaTopics: Seq[String] = {
     topicPartitionsMap.keys.toSeq.sorted
   }
 
-  override def getClusterViz: Node = {
+  override def getKafkaClusterViz: Node = {
     val clusterNodes = topicPartitionsMap.values.map(partition => {
       Node(partition.get(0).leader().host() + ":" + partition.get(0).leader().port(), Seq())
     }).toSet.toSeq.sortWith(_.name < _.name)
@@ -106,9 +106,10 @@ object KafkaOffsetGetter extends Logging {
   val logEndOffsetsMap: concurrent.Map[TopicPartition, Long] = concurrent.TrieMap()
 
   // Swap the object on update
+  var groups: immutable.Set[String] = immutable.HashSet()
   var activeTopicPartitions: immutable.Set[TopicAndPartition] = immutable.HashSet()
-  var clients: immutable.Set[ClientGroup] = immutable.HashSet()
-  var topicAndGroups: immutable.Set[TopicAndGroup] = immutable.HashSet()
+  var clients: immutable.Set[KafkaClientGroup] = immutable.HashSet()
+  var topicAndGroups: immutable.Set[KafkaTopicGroup] = immutable.HashSet()
   var topicPartitionsMap: immutable.Map[String, util.List[PartitionInfo]] = immutable.HashMap()
 
   private def createNewKafkaConsumer(args: OffsetGetterArgs, group: String): KafkaConsumer[Array[Byte], Array[Byte]] = {
@@ -284,8 +285,8 @@ object KafkaOffsetGetter extends Logging {
 
         lazy val f = Future {
           try {
-            val newTopicAndGroups: mutable.Set[TopicAndGroup] = mutable.HashSet()
-            val newClients: mutable.Set[ClientGroup] = mutable.HashSet()
+            val newTopicAndGroups: mutable.Set[KafkaTopicGroup] = mutable.HashSet()
+            val newClients: mutable.Set[KafkaClientGroup] = mutable.HashSet()
             val newActiveTopicPartitions: mutable.HashSet[TopicAndPartition] = mutable.HashSet()
 
             val groupOverviews = adminClient.listAllConsumerGroupsFlattened()
@@ -314,14 +315,15 @@ object KafkaOffsetGetter extends Logging {
 
                   topicPartitions.foreach((topicPartition) => {
                     newActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
-                    newTopicAndGroups += TopicAndGroup(topicPartition.topic(), groupId)
+                    newTopicAndGroups += KafkaTopicGroup(topicPartition.topic(), groupId)
                   })
 
-                  newClients += ClientGroup(groupId, clientId, clientHost, topicPartitions.toSet)
+                  newClients += KafkaClientGroup(groupId, clientId, clientHost, topicPartitions.toSet)
                 })
               }
             })
 
+            groups = (for (x <- groupOverviews) yield x.groupId)(collection.breakOut).toSet
             activeTopicPartitions = newActiveTopicPartitions.toSet
             clients = newClients.toSet
             topicAndGroups = newTopicAndGroups.toSet
@@ -415,6 +417,6 @@ object KafkaOffsetGetter extends Logging {
   }
 }
 
-case class TopicAndGroup(topic: String, group: String)
+case class KafkaTopicGroup(topic: String, group: String)
 
-case class ClientGroup(group: String, clientId: String, clientHost: String, topicPartitions: Set[TopicPartition])
+case class KafkaClientGroup(group: String, clientId: String, clientHost: String, topicPartitions: Set[TopicPartition])

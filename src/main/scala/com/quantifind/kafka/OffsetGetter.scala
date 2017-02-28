@@ -3,13 +3,13 @@ package com.quantifind.kafka
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.quantifind.kafka.OffsetGetter.{BrokerInfo, KafkaInfo, OffsetInfo}
+import com.quantifind.kafka.OffsetGetter.{KafkaBrokerInfo, KafkaGroupInfo, KafkaOffsetInfo}
 import com.quantifind.kafka.core._
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.utils.ZkUtilsWrapper
 import com.twitter.util.Time
 import kafka.consumer.{ConsumerConnector, SimpleConsumer}
-import kafka.utils.{Json, Logging, ZkUtils}
+import kafka.utils.{Logging, ZkUtils}
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.security.JaasUtils
 
@@ -22,7 +22,7 @@ case class TopicDetails(consumers: Seq[ConsumerDetail])
 
 case class TopicDetailsWrapper(consumers: TopicDetails)
 
-case class TopicAndConsumersDetails(active: Seq[KafkaInfo], inactive: Seq[KafkaInfo])
+case class TopicAndConsumersDetails(active: Seq[KafkaGroupInfo], inactive: Seq[KafkaGroupInfo])
 
 case class TopicAndConsumersDetailsWrapper(consumers: TopicAndConsumersDetails)
 
@@ -37,15 +37,15 @@ trait OffsetGetter extends Logging {
 	//  kind of interface methods
 	def getTopicList(group: String): List[String]
 
-	def getGroups: Seq[String]
+	def getKafkaGroups: Seq[String]
 
 	def getTopicMap: Map[String, Seq[String]]
 
 	def getActiveTopicMap: Map[String, Seq[String]]
 
-	def processPartition(group: String, topic: String, pid: Int): Option[OffsetInfo]
+	def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo]
 
-	protected def processTopic(group: String, topic: String): Seq[OffsetInfo] = {
+	protected def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
 		val pidMap = zkUtils.getPartitionsForTopics(Seq(topic))
 		for {
 			partitions <- pidMap.get(topic).toSeq
@@ -54,14 +54,14 @@ trait OffsetGetter extends Logging {
 		} yield info
 	}
 
-	protected def brokerInfo(): Iterable[BrokerInfo] = {
+	protected def brokerInfo(): Iterable[KafkaBrokerInfo] = {
 		for {
 			(bid, consumerOpt) <- consumerMap
 			consumer <- consumerOpt
-		} yield BrokerInfo(id = bid, host = consumer.host, port = consumer.port)
+		} yield KafkaBrokerInfo(id = bid, host = consumer.host, port = consumer.port)
 	}
 
-	protected def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[OffsetInfo] = {
+	protected def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[KafkaOffsetInfo] = {
 		val topicList = if (topics.isEmpty) {
 			getTopicList(group)
 		} else {
@@ -72,18 +72,18 @@ trait OffsetGetter extends Logging {
 	}
 
 	// get information about a consumer group and the topics it consumes
-	def getInfo(group: String, topics: Seq[String] = Seq()): KafkaInfo = {
+	def getKafkaGroupInfo(group: String, topics: Seq[String] = Seq()): KafkaGroupInfo = {
 		val off = offsetInfo(group, topics)
 		val brok = brokerInfo()
-		KafkaInfo(
-			name = group,
+		KafkaGroupInfo(
+			group = group,
 			brokers = brok.toSeq,
 			offsets = off
 		)
 	}
 
 	// get list of all topics
-	def getTopics: Seq[String] = {
+	def getKafkaTopics: Seq[String] = {
 		try {
 			zkUtils.getChildren(ZkUtils.BrokerTopicsPath).sortWith(_ < _)
 		} catch {
@@ -93,7 +93,7 @@ trait OffsetGetter extends Logging {
 		}
 	}
 
-	def getClusterViz: Node = {
+	def getKafkaClusterViz: Node = {
 		val clusterNodes = zkUtils.getAllBrokersInCluster().map((broker) => {
 			Node(broker.toString(), Seq())
 		})
@@ -103,7 +103,7 @@ trait OffsetGetter extends Logging {
 	/**
 	  * Returns details for a given topic such as the consumers pulling off of it
 	  */
-	def getTopicDetail(topic: String): TopicDetails = {
+	def getKafkaTopicDetails(topic: String): TopicDetails = {
 		val topicMap = getActiveTopicMap
 
 		if (topicMap.contains(topic)) {
@@ -122,7 +122,7 @@ trait OffsetGetter extends Logging {
 	  * Returns details for a given topic such as the active consumers pulling off of it
 	  * and for each of the active consumers it will return the consumer data
 	  */
-	def getTopicAndConsumersDetail(topic: String): TopicAndConsumersDetailsWrapper = {
+	def getKafkaTopicAndConsumersDetails(topic: String): TopicAndConsumersDetailsWrapper = {
 		val topicMap = getTopicMap
 		val activeTopicMap = getActiveTopicMap
 
@@ -143,11 +143,11 @@ trait OffsetGetter extends Logging {
 		TopicAndConsumersDetailsWrapper(TopicAndConsumersDetails(activeConsumers, inactiveConsumers))
 	}
 
-	def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaInfo] =
-		consumers.map(getInfo(_, Seq(topic)))
+	def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
+		consumers.map(getKafkaGroupInfo(_, Seq(topic)))
 
 
-	def getActiveTopics: Node = {
+	def getKafkaActiveTopics: Node = {
 		val topicMap = getActiveTopicMap
 
 		Node("ActiveTopics", topicMap.map {
@@ -161,11 +161,11 @@ trait OffsetGetter extends Logging {
 
 object OffsetGetter {
 
-	case class KafkaInfo(name: String, brokers: Seq[BrokerInfo], offsets: Seq[OffsetInfo])
+	case class KafkaGroupInfo(group: String, brokers: Seq[KafkaBrokerInfo], offsets: Seq[KafkaOffsetInfo])
 
-	case class BrokerInfo(id: Int, host: String, port: Int)
+	case class KafkaBrokerInfo(id: Int, host: String, port: Int)
 
-	case class OffsetInfo(group: String, topic: String, partition: Int, offset: Long, logSize: Long, owner: Option[String], creation: Time, modified: Time) {
+	case class KafkaOffsetInfo(group: String, topic: String, partition: Int, offset: Long, logSize: Long, owner: Option[String], creation: Time, modified: Time) {
 		val lag = logSize - offset
 	}
 
@@ -175,20 +175,23 @@ object OffsetGetter {
 	var newKafkaConsumer: KafkaConsumer[String, String] = null
 
 	def createZkUtils(args: OffsetGetterArgs): ZkUtils = {
-		ZkUtils(args.zk,
+		ZkUtils(
+			args.zk,
 			args.zkSessionTimeout.toMillis.toInt,
 			args.zkConnectionTimeout.toMillis.toInt,
-			JaasUtils.isZkSecurityEnabled())
+			JaasUtils.isZkSecurityEnabled()
+		)
 	}
 
 	def getInstance(args: OffsetGetterArgs): OffsetGetter = {
 
+		// create and initialize resources only once
 		if (kafkaOffsetListenerStarted.compareAndSet(false, true)) {
-
+			// needed for all OffsetGetters
 			zkUtils = new ZkUtilsWrapper(createZkUtils(args))
 
-			if (args.offsetStorage.toLowerCase == "kafka") {
-
+			// specific to kafka storage
+			if (args.offsetStorage.toLowerCase.equals("kafka")) {
 				val adminClientExecutor = Executors.newSingleThreadExecutor()
 				adminClientExecutor.submit(new Runnable() {
 					def run() = KafkaOffsetGetter.startAdminClient(args)

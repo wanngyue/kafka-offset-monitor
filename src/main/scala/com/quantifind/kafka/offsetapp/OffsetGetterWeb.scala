@@ -3,7 +3,7 @@ package com.quantifind.kafka.offsetapp
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 
 import com.quantifind.kafka.{OffsetGetter, TopicDetails}
-import com.quantifind.kafka.OffsetGetter.KafkaInfo
+import com.quantifind.kafka.OffsetGetter.KafkaGroupInfo
 import com.quantifind.kafka.offsetapp.sqlite.SQLiteOffsetInfoReporter
 import com.quantifind.sumac.validation.Required
 import com.quantifind.utils.UnfilteredWebApp
@@ -52,10 +52,10 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
   var dbReporter: SQLiteOffsetInfoReporter = null
 
   def reportOffsets(args: OWArgs) {
-    val groups = getGroups(args)
+    val groups = getKafkaGroups(args)
     groups.foreach {
       g =>
-        val inf = getInfo(g, args).offsets.toIndexedSeq
+        val inf = getKafkaGroupInfo(g, args).offsets.toIndexedSeq
         if (dbReporter != null) {
           debug(s"reporting ${inf.size}")
           dbReporter.report(inf)
@@ -79,32 +79,32 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     }
   }
 
-  def getInfo(group: String, args: OWArgs): KafkaInfo = withOG(args) {
-    _.getInfo(group)
+  def getKafkaGroupInfo(group: String, args: OWArgs): KafkaGroupInfo = withOG(args) {
+    _.getKafkaGroupInfo(group)
   }
 
-  def getGroups(args: OWArgs) = withOG(args) {
-    _.getGroups
+  def getKafkaGroups(args: OWArgs) = withOG(args) {
+    _.getKafkaGroups
   }
 
-  def getActiveTopics(args: OWArgs) = withOG(args) {
-    _.getActiveTopics
+  def getKafkaActiveTopics(args: OWArgs) = withOG(args) {
+    _.getKafkaActiveTopics
   }
 
-  def getTopics(args: OWArgs) = withOG(args) {
-    _.getTopics
+  def getKafkaTopics(args: OWArgs) = withOG(args) {
+    _.getKafkaTopics
   }
 
-  def getTopicDetail(topic: String, args: OWArgs) = withOG(args) {
-    _.getTopicDetail(topic)
+  def getKafkaTopicDetails(topic: String, args: OWArgs) = withOG(args) {
+    _.getKafkaTopicDetails(topic)
   }
 
-  def getTopicAndConsumersDetail(topic: String, args: OWArgs) = withOG(args) {
-    _.getTopicAndConsumersDetail(topic)
+  def getKafkaTopicConsumersDetails(topic: String, args: OWArgs) = withOG(args) {
+    _.getKafkaTopicAndConsumersDetails(topic)
   }
 
-  def getClusterViz(args: OWArgs) = withOG(args) {
-    _.getClusterViz
+  def getKafkaClusterViz(args: OWArgs) = withOG(args) {
+    _.getKafkaClusterViz
   }
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -132,11 +132,11 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     // define web application mapping
     def intent: Plan.Intent = {
       case GET(Path(Seg("group" :: Nil))) =>
-        val groups: Seq[String] = getGroups(args)
+        val groups = getKafkaGroups(args)
         JsonContent ~> ResponseString(write(groups))
 
       case GET(Path(Seg("group" :: group :: Nil))) =>
-        val info = getInfo(group, args)
+        val info = getKafkaGroupInfo(group, args)
         JsonContent ~> ResponseString(write(info)) ~> Ok
 
       case GET(Path(Seg("group" :: group :: topic :: Nil))) =>
@@ -144,23 +144,23 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         JsonContent ~> ResponseString(write(offsets)) ~> Ok
 
       case GET(Path(Seg("topiclist" :: Nil))) =>
-        val topics: Seq[String] = getTopics(args)
+        val topics = getKafkaTopics(args)
         JsonContent ~> ResponseString(write(topics))
 
       case GET(Path(Seg("clusterlist" :: Nil))) =>
-        val node = getClusterViz(args)
+        val node = getKafkaClusterViz(args)
         JsonContent ~> ResponseString(write(node))
 
       case GET(Path(Seg("topicdetails" :: topic :: Nil))) =>
-        val topicDetails : TopicDetails = getTopicDetail(topic, args)
+        val topicDetails = getKafkaTopicDetails(topic, args)
         JsonContent ~> ResponseString(write(topicDetails))
 
       case GET(Path(Seg("topic" :: topic :: "consumer" :: Nil))) =>
-        val topicAndConsumersDetails = getTopicAndConsumersDetail(topic, args)
+        val topicAndConsumersDetails = getKafkaTopicConsumersDetails(topic, args)
         JsonContent ~> ResponseString(write(topicAndConsumersDetails))
 
       case GET(Path(Seg("activetopics" :: Nil))) =>
-        val node = getActiveTopics(args)
+        val node = getKafkaActiveTopics(args)
         JsonContent ~> ResponseString(write(node))
     }
   }

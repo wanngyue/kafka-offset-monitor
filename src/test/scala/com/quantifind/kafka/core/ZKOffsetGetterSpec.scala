@@ -38,7 +38,7 @@ class ZKOffsetGetterSpec extends FlatSpec with ShouldMatchers {
 
     when(mockedZkUtil.getChildren(anyString)).thenReturn(Seq(testGroup1, testGroup2))
 
-    val groups = offsetGetter.getGroups
+    val groups = offsetGetter.getKafkaGroups
 
     groups.size shouldBe 2
     groups(0) shouldBe testGroup1
