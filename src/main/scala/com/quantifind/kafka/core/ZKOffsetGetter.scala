@@ -62,7 +62,8 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
                 OffsetRequest(immutable.Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
               val logSize = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
 
-              OffsetInfo(group = group,
+              OffsetInfo(
+                group = group,
                 topic = topic,
                 partition = pid,
                 offset = offset.toLong,
