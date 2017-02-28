@@ -9,21 +9,20 @@ import com.quantifind.kafka.offsetapp.OffsetDB.{DbOffsetInfo, OffsetHistory, Off
 import com.twitter.util.Time
 
 /**
- * Tools to store offsets in a DB
- * User: andrews
- * Date: 1/27/14
- */
+  * Tools to store offsets in a DB
+  * User: andrews
+  * Date: 1/27/14
+  */
 class OffsetDB(dbfile: String) {
 
-  val database = Database.forURL(s"jdbc:sqlite:$dbfile.db",
-    driver = "org.sqlite.JDBC")
+  val database = Database.forURL(s"jdbc:sqlite:$dbfile.db", driver = "org.sqlite.JDBC")
 
   implicit val twitterTimeMap = MappedColumnType.base[Time, Long](
-  {
-    time => time.inMillis
-  }, {
-    millis => Time.fromMilliseconds(millis)
-  }
+    {
+      time => time.inMillis
+    }, {
+      millis => Time.fromMilliseconds(millis)
+    }
   )
 
   class Offset(tag: Tag) extends Table[DbOffsetInfo](tag, "OFFSETS") {
@@ -39,10 +38,9 @@ class OffsetDB(dbfile: String) {
     val creation = column[Time]("creation")
     val modified = column[Time]("modified")
 
+    def * = (id.?, group, topic, partition, offset, logSize, owner, timestamp, creation, modified).shaped <> (DbOffsetInfo.parse, DbOffsetInfo.unparse)
 
-    def * = (id.?, group, topic, partition, offset, logSize, owner, timestamp, creation, modified).shaped <>(DbOffsetInfo.parse, DbOffsetInfo.unparse)
-
-    def forHistory = (timestamp, partition, owner, offset, logSize) <>(OffsetPoints.tupled, OffsetPoints.unapply)
+    def forHistory = (timestamp, partition, owner, offset, logSize) <> (OffsetPoints.tupled, OffsetPoints.unapply)
 
     def idx = index("idx_search", (group, topic))
 

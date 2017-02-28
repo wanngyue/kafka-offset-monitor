@@ -8,7 +8,6 @@ import com.quantifind.kafka.core._
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.utils.ZkUtilsWrapper
 import com.twitter.util.Time
-import kafka.common.BrokerNotAvailableException
 import kafka.consumer.{ConsumerConnector, SimpleConsumer}
 import kafka.utils.{Json, Logging, ZkUtils}
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -16,7 +15,6 @@ import org.apache.kafka.common.security.JaasUtils
 
 import scala.collection._
 import scala.util.control.NonFatal
-
 
 case class Node(name: String, children: Seq[Node] = Seq())
 
@@ -47,30 +45,6 @@ trait OffsetGetter extends Logging {
 
 	def processPartition(group: String, topic: String, pid: Int): Option[OffsetInfo]
 
-	// get the Kafka simple consumer so that we can fetch broker offsets
-	protected def getConsumer(bid: Int): Option[SimpleConsumer] = {
-		try {
-			zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + bid) match {
-				case (Some(brokerInfoString), _) =>
-					Json.parseFull(brokerInfoString) match {
-						case Some(m) =>
-							val brokerInfo = m.asInstanceOf[Map[String, Any]]
-							val host = brokerInfo.get("host").get.asInstanceOf[String]
-							val port = brokerInfo.get("port").get.asInstanceOf[Int]
-							Some(new SimpleConsumer(host, port, 10000, 100000, "ConsumerOffsetChecker"))
-						case None =>
-							throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
-					}
-				case (None, _) =>
-					throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
-			}
-		} catch {
-			case t: Throwable =>
-				error("Could not parse broker info", t)
-				None
-		}
-	}
-
 	protected def processTopic(group: String, topic: String): Seq[OffsetInfo] = {
 		val pidMap = zkUtils.getPartitionsForTopics(Seq(topic))
 		for {
@@ -88,7 +62,6 @@ trait OffsetGetter extends Logging {
 	}
 
 	protected def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[OffsetInfo] = {
-
 		val topicList = if (topics.isEmpty) {
 			getTopicList(group)
 		} else {
@@ -97,7 +70,6 @@ trait OffsetGetter extends Logging {
 
 		topicList.sorted.flatMap(processTopic(group, _))
 	}
-
 
 	// get information about a consumer group and the topics it consumes
 	def getInfo(group: String, topics: Seq[String] = Seq()): KafkaInfo = {
@@ -193,14 +165,7 @@ object OffsetGetter {
 
 	case class BrokerInfo(id: Int, host: String, port: Int)
 
-	case class OffsetInfo(group: String,
-	                      topic: String,
-	                      partition: Int,
-	                      offset: Long,
-	                      logSize: Long,
-	                      owner: Option[String],
-	                      creation: Time,
-	                      modified: Time) {
+	case class OffsetInfo(group: String, topic: String, partition: Int, offset: Long, logSize: Long, owner: Option[String], creation: Time, modified: Time) {
 		val lag = logSize - offset
 	}
 
@@ -244,8 +209,6 @@ object OffsetGetter {
 		args.offsetStorage.toLowerCase match {
 			case "kafka" =>
 				new KafkaOffsetGetter(zkUtils, args)
-			case "storm" =>
-				new StormOffsetGetter(zkUtils, args.stormZKOffsetBase)
 			case _ =>
 				new ZKOffsetGetter(zkUtils)
 		}

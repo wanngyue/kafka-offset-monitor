@@ -40,7 +40,7 @@ class KafkaOffsetGetterSpec extends FlatSpec with ShouldMatchers {
 
     val topicAndPartition = TopicAndPartition(testTopic, testPartition)
     val topicPartition = new TopicPartition(testTopic, testPartition)
-    val groupTopicPartition = GroupTopicPartition(testGroup, TopicAndPartition(testTopic, testPartition))
+    val groupTopicPartition = GroupTopicPartition(testGroup, new TopicPartition(testTopic, testPartition))
     val offsetAndMetadata = OffsetAndMetadata(committedOffset, "meta", System.currentTimeMillis)
 
     KafkaOffsetGetter.committedOffsetMap += (groupTopicPartition -> offsetAndMetadata)

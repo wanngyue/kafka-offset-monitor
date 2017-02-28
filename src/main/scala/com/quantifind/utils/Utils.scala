@@ -9,6 +9,7 @@ import scala.util.{Failure, Success, Try}
  */
 
 object Utils {
+
   // Returning T, throwing the exception on failure
   @annotation.tailrec
   final def retry[T](n: Int)(fn: => T): T = {

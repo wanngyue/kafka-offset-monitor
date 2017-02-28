@@ -1,7 +1,6 @@
 package com.quantifind.utils
 
 import unfiltered.util.Port
-
 import com.quantifind.sumac.{ArgMain, FieldArgs}
 import com.quantifind.utils.UnfilteredWebApp.Arguments
 
@@ -29,7 +28,6 @@ trait UnfilteredWebApp[T <: Arguments] extends ArgMain[T] {
       .filter(setup(parsed))
       .run(_ => afterStart(), _ => afterStop())
   }
-
 }
 
 object UnfilteredWebApp {
