@@ -247,7 +247,7 @@ object KafkaOffsetGetter extends Logging {
               val partition: Long = gtp.topicPartition.partition
               val offset: Long = offsetAndMetadata.offset
 
-              info(s"Updating committed offset: g:$group,t:$topic,p:$partition: $offset")
+              debug(s"Updating committed offset: g:$group,t:$topic,p:$partition: $offset")
               committedOffsetMap += messageOffsetMap
             }
           }
