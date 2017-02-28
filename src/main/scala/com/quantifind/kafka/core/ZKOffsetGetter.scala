@@ -41,7 +41,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
           throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
       }
     } catch {
-      case t =>
+      case t: Throwable =>
         error("Could not parse broker info", t)
         None
     }

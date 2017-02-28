@@ -58,11 +58,13 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
         }
 
       // Get client information if we can find an associated client
-      var clientString: Option[String] = Option("NA")
+      var clientString: Option[String] = Option("")
       val filteredClients = clients.filter(c => (c.group == group && c.topicPartitions.contains(topicPartition)))
       if (!filteredClients.isEmpty) {
         val client: KafkaClientGroup = filteredClients.head
-        clientString = Option(client.clientId + " / " + client.clientHost)
+        if (!client.clientId.isEmpty && !client.clientHost.isEmpty) {
+          clientString = Option(client.clientId + " / " + client.clientHost)
+        }
       }
 
       KafkaOffsetInfo(
@@ -72,8 +74,9 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
         offset = committedOffset,
         logSize = logEndOffsetReported,
         owner = clientString,
-        creation = Time.fromMilliseconds(offsetMetaData.expireTimestamp),
-        modified = Time.fromMilliseconds(offsetMetaData.commitTimestamp))
+        Time.Undefined,
+        Time.Undefined
+      )
     }
   }
 
@@ -249,8 +252,8 @@ object KafkaOffsetGetter extends Logging {
             //   a changed offset for an existing topic-partition, or a new topic-partition
             if (!existingCommittedOffsetMap.isDefined || existingCommittedOffsetMap.get.offset != offsetAndMetadata.offset) {
 
-              val group: String = gtp.group
-              val topic: String = gtp.topicPartition.topic
+              val group = gtp.group
+              val topic = gtp.topicPartition.topic
               val partition: Long = gtp.topicPartition.partition
               val offset: Long = offsetAndMetadata.offset
 
@@ -320,7 +323,14 @@ object KafkaOffsetGetter extends Logging {
               } else {
                 offsets.foreach {
                   case (topicPartition, offset) => {
-                    committedOffsetMap.put(new GroupTopicPartition(groupId, topicPartition),new OffsetAndMetadata(new OffsetMetadata(offset = offset), 0, 0))
+                    committedOffsetMap.put(
+                      new GroupTopicPartition(groupId, topicPartition),
+                      new OffsetAndMetadata(
+                        new OffsetMetadata(offset = offset),
+                        commitTimestamp = 0,
+                        expireTimestamp = 0
+                      )
+                    )
                     logEndOffsetsMap.put(topicPartition, 0)
 
                     currentActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
