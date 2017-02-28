@@ -87,6 +87,7 @@ trait OffsetGetter extends Logging {
     }
 
     val kafkaOffsetsInfo = offsetInfo(group, topics)
+    // available only for zookeeper storage
     val kafkaBrokersInfo = brokerInfo()
 
     KafkaGroupInfo(

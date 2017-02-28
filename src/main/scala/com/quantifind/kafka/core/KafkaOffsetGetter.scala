@@ -42,20 +42,9 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
 
     committedOffsetMap.get(GroupTopicPartition(group, topicPartition)) map { offsetMetaData =>
 
-      // BIT O'HACK to deal with timing:
-      // Due to thread and processing timing, it is possible that the value we have for the topicPartition's
-      // logEndOffset has not yet been updated to match the value on the broker.  When this happens, report the
-      // topicPartition's logEndOffset as "committedOffset - lag", as the topicPartition's logEndOffset is *AT LEAST*
-      // this value
-      val logEndOffset: Option[Long] = logEndOffsetsMap.get(topicPartition)
+      val logEndOffset: Long = logEndOffsetsMap.get(topicPartition).get
       val committedOffset: Long = offsetMetaData.offset
-      val lag: Long = logEndOffset.get - committedOffset
-      val logEndOffsetReported: Long =
-        if (lag < 0) {
-          committedOffset - lag
-        } else {
-          logEndOffset.get
-        }
+      val lag: Long = logEndOffset - committedOffset
 
       // Get client information if we can find an associated client
       var clientString: Option[String] = Option("")
@@ -72,7 +61,7 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
         topic = topic,
         partition = partitionId,
         offset = committedOffset,
-        logSize = logEndOffsetReported,
+        logSize = logEndOffset,
         owner = clientString,
         Time.Undefined,
         Time.Undefined
@@ -109,6 +98,9 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
 }
 
 object KafkaOffsetGetter extends Logging {
+
+  val kafkaOffsetMonitorGroup: String = "kafka-offset-monitor-consumer"
+  val kafkaOffsetTopic = "__consumer_offsets"
 
   val committedOffsetMap: concurrent.Map[GroupTopicPartition, OffsetAndMetadata] = concurrent.TrieMap()
   val logEndOffsetsMap: concurrent.Map[TopicPartition, Long] = concurrent.TrieMap()
@@ -217,8 +209,6 @@ object KafkaOffsetGetter extends Logging {
 
   def startCommittedOffsetListener(args: OffsetGetterArgs) = {
 
-    val group: String = "kafka-offset-monitor-consumer"
-    val consumerOffsetTopic = "__consumer_offsets"
     var offsetConsumer: KafkaConsumer[Array[Byte], Array[Byte]] = null
 
     while (true) {
@@ -226,8 +216,8 @@ object KafkaOffsetGetter extends Logging {
       try {
         if (null == offsetConsumer) {
           logger.info("Creating new Kafka Client to get consumer group committed offsets")
-          offsetConsumer = createNewKafkaConsumer(args, group)
-          offsetConsumer.subscribe(Arrays.asList(consumerOffsetTopic))
+          offsetConsumer = createNewKafkaConsumer(args, kafkaOffsetMonitorGroup)
+          offsetConsumer.subscribe(Arrays.asList(kafkaOffsetTopic))
         }
 
         val messages: ConsumerRecords[Array[Byte], Array[Byte]] = offsetConsumer.poll(500)
@@ -297,7 +287,8 @@ object KafkaOffsetGetter extends Logging {
             val currentClients: mutable.Set[KafkaClientGroup] = mutable.HashSet()
             val currentActiveTopicPartitions: mutable.HashSet[TopicAndPartition] = mutable.HashSet()
 
-            val groupOverviews = adminClient.listAllConsumerGroupsFlattened()
+            val groupOverviews = adminClient.listAllConsumerGroupsFlattened().filter(c => c.groupId != kafkaOffsetMonitorGroup)
+
             groupOverviews.foreach((groupOverview: GroupOverview) => {
               val groupId = groupOverview.groupId;
               val offsets: Map[TopicPartition, Long] = adminClient.listGroupOffsets(groupId)
@@ -325,14 +316,11 @@ object KafkaOffsetGetter extends Logging {
                   case (topicPartition, offset) => {
                     committedOffsetMap.put(
                       new GroupTopicPartition(groupId, topicPartition),
-                      new OffsetAndMetadata(
-                        new OffsetMetadata(offset = offset),
-                        commitTimestamp = 0,
-                        expireTimestamp = 0
-                      )
+                      new OffsetAndMetadata(new OffsetMetadata(offset = offset), commitTimestamp = 0, expireTimestamp = 0)
                     )
                     logEndOffsetsMap.put(topicPartition, 0)
 
+                    // adding these fake consumers in order to show empty entries in any case
                     currentActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
                     currentTopicAndGroups += KafkaTopicGroup(topicPartition.topic(), groupId)
                   }
@@ -381,7 +369,7 @@ object KafkaOffsetGetter extends Logging {
 
   def startLogEndOffsetGetter(args: OffsetGetterArgs) = {
 
-    val group: String = "kafka-monitor-LogEndOffsetGetter"
+    val group: String = "kafka-monitor-log-end-offset-getter"
     val sleepOnDataRetrieval: Int = 10000
     val sleepOnError: Int = 30000
     var logEndOffsetGetter: KafkaConsumer[Array[Byte], Array[Byte]] = null

@@ -12,26 +12,29 @@
 </div>
 
 <div ng-hide="loading">
-  <h2>Brokers</h2>
 
-  <table class="table">
-  <thead>
-      <tr>
-    <th>id</th>
-    <th>host</th>
-    <th>port</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr ng-repeat="b in info.brokers">
-    <td>{{b.id}}</td>
-    <td>{{b.host}}</td>
-    <td>{{b.port}}</td>
-      </tr>
-  </tbody>
-  </table>
+  <div ng-if="info.brokers.length > 0">
+    <h2>Brokers</h2>
 
-  <hr/>
+    <table class="table">
+    <thead>
+        <tr>
+      <th>id</th>
+      <th>host</th>
+      <th>port</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr ng-repeat="b in info.brokers">
+      <td>{{b.id}}</td>
+      <td>{{b.host}}</td>
+      <td>{{b.port}}</td>
+        </tr>
+    </tbody>
+    </table>
+
+    <hr/>
+  </div>
 
   <h2>Consumer Offsets</h2>
   <div ng-include="'views/includes/group.inc.html'">

@@ -134,8 +134,6 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         JsonContent ~> ResponseString(write(groups))
 
         // TODO: fix missing brokers
-        // TODO: fix no active consumer -> no offsets
-        // TODO: fix creation and modified are equal to current unix time
       case GET(Path(Seg("group" :: group :: Nil))) =>
         val info = getKafkaGroupInfo(group, args)
         JsonContent ~> ResponseString(write(info)) ~> Ok
@@ -156,7 +154,6 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         val topicDetails = getKafkaTopicDetails(topic, args)
         JsonContent ~> ResponseString(write(topicDetails))
 
-        // TODO: fix creation and modified are equal to current unix time
       case GET(Path(Seg("topic" :: topic :: "consumer" :: Nil))) =>
         val topicAndConsumersDetails = getKafkaTopicConsumersDetails(topic, args)
         JsonContent ~> ResponseString(write(topicAndConsumersDetails))
