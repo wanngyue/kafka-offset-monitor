@@ -1,6 +1,8 @@
 kafka-offset-monitor
 ===========
 
+**Warning: this application requires Kafka brokers version to be at least 0.10.2.0 in case of kafka internal offset storage.**
+
 This is an app to monitor your Kafka consumers and their position (offset) in the log.
 
 You can see the current consumer groups, for each group the topics that they are consuming and the position of the group in each topic log. This is useful to understand how quick you are consuming from a log and how fast the log is growing. It allows for debugging Kafka producers and consumers or just to have an idea of what is going on in your system.
