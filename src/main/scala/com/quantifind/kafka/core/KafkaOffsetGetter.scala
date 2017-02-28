@@ -60,7 +60,8 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
         clientString = Option(client.clientId + " / " + client.clientHost)
       }
 
-      OffsetInfo(group = group,
+      OffsetInfo(
+        group = group,
         topic = topic,
         partition = partitionId,
         offset = committedOffset,
@@ -276,13 +277,10 @@ object KafkaOffsetGetter extends Logging {
     var adminClient: AdminClient = null
 
     while (true) {
-
       try {
         if (adminClient == null) {
           adminClient = createNewAdminClient(args)
         }
-
-        var hasError: Boolean = false
 
         lazy val f = Future {
           try {
@@ -291,7 +289,6 @@ object KafkaOffsetGetter extends Logging {
             val newActiveTopicPartitions: mutable.HashSet[TopicAndPartition] = mutable.HashSet()
 
             val groupOverviews = adminClient.listAllConsumerGroupsFlattened()
-
             groupOverviews.foreach((groupOverview: GroupOverview) => {
 
               val groupId: String = groupOverview.groupId;
@@ -302,6 +299,9 @@ object KafkaOffsetGetter extends Logging {
 
                   val clientId: String = consumerSummary.clientId
                   var clientHost: String = consumerSummary.host
+
+                  // instead of giving the hostname of the consumer, Kafka broker sometimes gives /<ip-address> value
+                  // try to replace by the hostname
                   if (consumerSummary.host.matches("/\\d+\\.\\d+\\.\\d+\\.\\d+")) {
                     try {
                       clientHost = InetAddress.getByName(consumerSummary.host.substring(1)).getHostName
@@ -343,8 +343,7 @@ object KafkaOffsetGetter extends Logging {
         Await.result(f, duration.pairIntToDuration(awaitForResults, duration.MILLISECONDS))
 
         Thread.sleep(sleepDurationMillis)
-      }
-      catch {
+      } catch {
         case tex: java.util.concurrent.TimeoutException => {
           warn("The AdminClient timed out, so it will be closed and restarted", tex)
           if (adminClient != null) {
