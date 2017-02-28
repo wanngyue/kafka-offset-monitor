@@ -393,13 +393,7 @@ object KafkaOffsetGetter extends Logging {
           logEndOffsetGetter.seekToEnd(Arrays.asList(topicPartition))
           val logEndOffset: Long = logEndOffsetGetter.position(topicPartition)
 
-          // Update the TopicPartition map with the current LogEndOffset if it exists, else add a new entry to the map
-          if (logEndOffsetsMap.contains(topicPartition)) {
-            logEndOffsetsMap.update(topicPartition, logEndOffset)
-          }
-          else {
-            logEndOffsetsMap += (topicPartition -> logEndOffset)
-          }
+          logEndOffsetsMap.put(topicPartition, logEndOffset)
         })
 
         Thread.sleep(sleepOnDataRetrieval)

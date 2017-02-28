@@ -3,6 +3,7 @@ package com.quantifind.utils
 import unfiltered.util.Port
 import com.quantifind.sumac.{ArgMain, FieldArgs}
 import com.quantifind.utils.UnfilteredWebApp.Arguments
+import unfiltered.jetty.SocketPortBinding
 
 /**
  * Web app that serves static files from the resource directory and other stuff from the provided mapping
@@ -22,10 +23,11 @@ trait UnfilteredWebApp[T <: Arguments] extends ArgMain[T] {
   override def main(parsed: T) {
     val root = getClass.getResource(htmlRoot)
 
-    unfiltered.jetty.Http(parsed.port)
+    unfiltered.jetty.Server
+      .portBinding(new SocketPortBinding(parsed.port, "0.0.0.0"))
       // whatever is not matched by our filter will be served from the resources folder (html, css, ...)
       .resources(root)
-      .filter(setup(parsed))
+      .plan(setup(parsed))
       .run(_ => afterStart(), _ => afterStop())
   }
 }
