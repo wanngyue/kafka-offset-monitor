@@ -49,7 +49,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
 
   override def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo] = {
     try {
-      val (offset, stat: Stat) = zkUtils.readData(s"${ZkUtils.ConsumersPath}/$group/offsets/$topic/$partitionId")
+      val (offset, stat: Stat) = zkUtils.readDataMaybeNull(s"${ZkUtils.ConsumersPath}/$group/offsets/$topic/$partitionId")
       val (owner, _) = zkUtils.readDataMaybeNull(s"${ZkUtils.ConsumersPath}/$group/owners/$topic/$partitionId")
 
       zkUtils.getLeaderForPartition(topic, partitionId) match {
@@ -66,7 +66,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
                 group = group,
                 topic = topic,
                 partition = partitionId,
-                offset = offset.toLong,
+                offset = if (offset.isDefined) { offset.get.toLong } else { -1 },
                 logSize = logSize,
                 owner = owner,
                 creation = Time.fromMilliseconds(stat.getCtime),
