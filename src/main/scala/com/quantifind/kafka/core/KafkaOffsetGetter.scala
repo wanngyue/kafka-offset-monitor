@@ -8,7 +8,8 @@ import java.util.{Arrays, Properties}
 import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.kafka.{Node, OffsetGetter}
-import com.quantifind.utils.ZkUtilsWrapper
+import com.quantifind.utils.{Utils, ZkUtilsWrapper}
+import com.quantifind.utils.Utils.convertKafkaHostToHostname
 import com.twitter.util.Time
 import kafka.admin.AdminClient
 import kafka.common.{KafkaException, OffsetAndMetadata, TopicAndPartition}
@@ -76,7 +77,7 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     groups.toSeq.sorted
   }
 
-  override def getTopicList(group: String): List[String] = {
+  override def getKafkaTopicList(group: String): List[String] = {
     topicAndGroups.filter(_.group == group).groupBy(_.topic).keySet.toList.sorted
   }
 
@@ -209,7 +210,7 @@ object KafkaOffsetGetter extends Logging {
 
   def startCommittedOffsetListener(args: OffsetGetterArgs) = {
 
-    val group: String = "kafka-monitor-committedOffsetListener"
+    val group: String = "kafka-offset-monitor-consumer"
     val consumerOffsetTopic = "__consumer_offsets"
     var offsetConsumer: KafkaConsumer[Array[Byte], Array[Byte]] = null
 
@@ -285,13 +286,12 @@ object KafkaOffsetGetter extends Logging {
 
         lazy val f = Future {
           try {
-            val newTopicAndGroups: mutable.Set[KafkaTopicGroup] = mutable.HashSet()
-            val newClients: mutable.Set[KafkaClientGroup] = mutable.HashSet()
-            val newActiveTopicPartitions: mutable.HashSet[TopicAndPartition] = mutable.HashSet()
+            val currentTopicAndGroups: mutable.Set[KafkaTopicGroup] = mutable.HashSet()
+            val currentClients: mutable.Set[KafkaClientGroup] = mutable.HashSet()
+            val currentActiveTopicPartitions: mutable.HashSet[TopicAndPartition] = mutable.HashSet()
 
             val groupOverviews = adminClient.listAllConsumerGroupsFlattened()
             groupOverviews.foreach((groupOverview: GroupOverview) => {
-
               val groupId: String = groupOverview.groupId;
               val consumers: Option[List[AdminClient#ConsumerSummary]] = adminClient.describeConsumerGroup(groupId).consumers
 
@@ -299,34 +299,24 @@ object KafkaOffsetGetter extends Logging {
                 consumers.get.foreach((consumerSummary) => {
 
                   val clientId: String = consumerSummary.clientId
-                  var clientHost: String = consumerSummary.host
-
-                  // instead of giving the hostname of the consumer, Kafka broker sometimes gives /<ip-address> value
-                  // try to replace by the hostname
-                  if (consumerSummary.host.matches("/\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-                    try {
-                      clientHost = InetAddress.getByName(consumerSummary.host.substring(1)).getHostName
-                    } catch {
-                      case ex: Throwable => ()
-                    }
-                  }
+                  val clientHost: String = convertKafkaHostToHostname(consumerSummary.host)
 
                   val topicPartitions: List[TopicPartition] = consumerSummary.assignment
 
                   topicPartitions.foreach((topicPartition) => {
-                    newActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
-                    newTopicAndGroups += KafkaTopicGroup(topicPartition.topic(), groupId)
+                    currentActiveTopicPartitions += TopicAndPartition(topicPartition.topic(), topicPartition.partition())
+                    currentTopicAndGroups += KafkaTopicGroup(topicPartition.topic(), groupId)
                   })
 
-                  newClients += KafkaClientGroup(groupId, clientId, clientHost, topicPartitions.toSet)
+                  currentClients += KafkaClientGroup(groupId, clientId, clientHost, topicPartitions.toSet)
                 })
               }
             })
 
             groups = (for (x <- groupOverviews) yield x.groupId)(collection.breakOut).toSet
-            activeTopicPartitions = newActiveTopicPartitions.toSet
-            clients = newClients.toSet
-            topicAndGroups = newTopicAndGroups.toSet
+            activeTopicPartitions = currentActiveTopicPartitions.toSet
+            clients = currentClients.toSet
+            topicAndGroups = currentTopicAndGroups.toSet
           }
           catch {
             case e: Throwable =>

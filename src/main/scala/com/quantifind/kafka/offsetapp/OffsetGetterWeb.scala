@@ -7,7 +7,6 @@ import com.quantifind.kafka.OffsetGetter.KafkaGroupInfo
 import com.quantifind.kafka.offsetapp.sqlite.SQLiteOffsetInfoReporter
 import com.quantifind.sumac.validation.Required
 import com.quantifind.utils.UnfilteredWebApp
-import com.quantifind.utils.Utils.retry
 import com.twitter.util.Time
 import kafka.utils.Logging
 import org.json4s.native.Serialization
@@ -19,7 +18,6 @@ import unfiltered.response.{JsonContent, Ok, ResponseString}
 
 import scala.concurrent.duration._
 import scala.language.implicitConversions
-import scala.util.control.NonFatal
 
 class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
 
@@ -135,6 +133,9 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         val groups = getKafkaGroups(args)
         JsonContent ~> ResponseString(write(groups))
 
+        // TODO: fix missing brokers
+        // TODO: fix no active consumer -> no offsets
+        // TODO: fix creation and modified are equal to current unix time
       case GET(Path(Seg("group" :: group :: Nil))) =>
         val info = getKafkaGroupInfo(group, args)
         JsonContent ~> ResponseString(write(info)) ~> Ok
@@ -155,6 +156,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         val topicDetails = getKafkaTopicDetails(topic, args)
         JsonContent ~> ResponseString(write(topicDetails))
 
+        // TODO: fix creation and modified are equal to current unix time
       case GET(Path(Seg("topic" :: topic :: "consumer" :: Nil))) =>
         val topicAndConsumersDetails = getKafkaTopicConsumersDetails(topic, args)
         JsonContent ~> ResponseString(write(topicAndConsumersDetails))

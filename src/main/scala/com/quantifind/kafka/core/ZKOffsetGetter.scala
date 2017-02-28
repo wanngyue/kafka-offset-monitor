@@ -24,9 +24,9 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
   override val zkUtils = theZkUtils
 
   // get the Kafka simple consumer so that we can fetch broker offsets
-  protected def getConsumer(bid: Int): Option[SimpleConsumer] = {
+  protected def getConsumer(brokerId: Int): Option[SimpleConsumer] = {
     try {
-      zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + bid) match {
+      zkUtils.readDataMaybeNull(ZkUtils.BrokerIdsPath + "/" + brokerId) match {
         case (Some(brokerInfoString), _) =>
           Json.parseFull(brokerInfoString) match {
             case Some(m) =>
@@ -35,10 +35,10 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
               val port = brokerInfo.get("port").get.asInstanceOf[Int]
               Some(new SimpleConsumer(host, port, 10000, 100000, "ConsumerOffsetChecker"))
             case None =>
-              throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
+              throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
           }
         case (None, _) =>
-          throw new BrokerNotAvailableException("Broker id %d does not exist".format(bid))
+          throw new BrokerNotAvailableException("Broker id %d does not exist".format(brokerId))
       }
     } catch {
       case t: Throwable =>
@@ -47,17 +47,17 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  override def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo] = {
+  override def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo] = {
     try {
-      val (offset, stat: Stat) = zkUtils.readData(s"${ZkUtils.ConsumersPath}/$group/offsets/$topic/$pid")
-      val (owner, _) = zkUtils.readDataMaybeNull(s"${ZkUtils.ConsumersPath}/$group/owners/$topic/$pid")
+      val (offset, stat: Stat) = zkUtils.readData(s"${ZkUtils.ConsumersPath}/$group/offsets/$topic/$partitionId")
+      val (owner, _) = zkUtils.readDataMaybeNull(s"${ZkUtils.ConsumersPath}/$group/owners/$topic/$partitionId")
 
-      zkUtils.getLeaderForPartition(topic, pid) match {
-        case Some(bid) =>
-          val consumerOpt = consumerMap.getOrElseUpdate(bid, getConsumer(bid))
+      zkUtils.getLeaderForPartition(topic, partitionId) match {
+        case Some(brokerId) =>
+          val consumerOpt = consumerMap.getOrElseUpdate(brokerId, getConsumer(brokerId))
           consumerOpt map {
             consumer =>
-              val topicAndPartition = TopicAndPartition(topic, pid)
+              val topicAndPartition = TopicAndPartition(topic, partitionId)
               val request =
                 OffsetRequest(immutable.Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)))
               val logSize = consumer.getOffsetsBefore(request).partitionErrorAndOffsets(topicAndPartition).offsets.head
@@ -65,15 +65,16 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
               KafkaOffsetInfo(
                 group = group,
                 topic = topic,
-                partition = pid,
+                partition = partitionId,
                 offset = offset.toLong,
                 logSize = logSize,
                 owner = owner,
                 creation = Time.fromMilliseconds(stat.getCtime),
-                modified = Time.fromMilliseconds(stat.getMtime))
+                modified = Time.fromMilliseconds(stat.getMtime)
+              )
           }
         case None =>
-          error("No broker for partition %s - %s".format(topic, pid))
+          error("No broker for partition %s - %s".format(topic, partitionId))
           None
       }
     } catch {
@@ -93,7 +94,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
-  override def getTopicList(group: String): List[String] = {
+  override def getKafkaTopicList(group: String): List[String] = {
     try {
       zkUtils.getChildren(s"${ZkUtils.ConsumersPath}/$group/offsets").toList
     } catch {
@@ -108,7 +109,7 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath).flatMap {
         group => {
-          getTopicList(group).map(topic => topic -> group)
+          getKafkaTopicList(group).map(topic => topic -> group)
         }
       }.groupBy(_._1).mapValues {
         _.unzip._2

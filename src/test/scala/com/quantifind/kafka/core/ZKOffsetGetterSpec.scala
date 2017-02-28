@@ -24,7 +24,7 @@ class ZKOffsetGetterSpec extends FlatSpec with ShouldMatchers {
 
     when(mockedZkUtil.getChildren(anyString)).thenReturn(Seq(testTopic1, testTopic2))
 
-    val topics = offsetGetter.getTopicList(testGroup)
+    val topics = offsetGetter.getKafkaTopicList(testGroup)
     
     topics.size shouldBe 2
     topics(0) shouldBe testTopic1

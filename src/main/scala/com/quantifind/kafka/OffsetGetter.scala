@@ -28,192 +28,207 @@ case class TopicAndConsumersDetailsWrapper(consumers: TopicAndConsumersDetails)
 
 case class ConsumerDetail(name: String)
 
+/**
+  * OffsetGetter trait that must be implemented specifically for each storage
+  */
 trait OffsetGetter extends Logging {
 
-	val consumerMap: mutable.Map[Int, Option[SimpleConsumer]] = mutable.Map()
+  val consumerMap: mutable.Map[Int, Option[SimpleConsumer]] = mutable.Map()
 
-	def zkUtils: ZkUtilsWrapper
+  def zkUtils: ZkUtilsWrapper
 
-	//  kind of interface methods
-	def getTopicList(group: String): List[String]
+  /**
+    * Get list of Kafka groups ever existed
+    * @return
+    */
+  def getKafkaGroups: Seq[String]
 
-	def getKafkaGroups: Seq[String]
+  /**
+    * Get list of Kafka topics ever existed for the given consumer group
+    * @param group
+    * @return
+    */
+  def getKafkaTopicList(group: String): List[String]
 
-	def getTopicMap: Map[String, Seq[String]]
+  def getTopicMap: Map[String, Seq[String]]
 
-	def getActiveTopicMap: Map[String, Seq[String]]
+  def getActiveTopicMap: Map[String, Seq[String]]
 
-	def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo]
+  /**
+    * get information about a consumer group and the topics it consumes
+    */
+  def getKafkaGroupInfo(group: String, topics: Seq[String] = Seq()): KafkaGroupInfo = {
+    def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[KafkaOffsetInfo] = {
+      def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
+        val pidMap = zkUtils.getPartitionsForTopics(Seq(topic))
+        for {
+          partitions <- pidMap.get(topic).toSeq
+          pid <- partitions.sorted
+          info <- processPartition(group, topic, pid)
+        } yield info
+      }
 
-	protected def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
-		val pidMap = zkUtils.getPartitionsForTopics(Seq(topic))
-		for {
-			partitions <- pidMap.get(topic).toSeq
-			pid <- partitions.sorted
-			info <- processPartition(group, topic, pid)
-		} yield info
-	}
+      val topicList = if (topics.isEmpty) {
+        getKafkaTopicList(group)
+      } else {
+        topics
+      }
 
-	protected def brokerInfo(): Iterable[KafkaBrokerInfo] = {
-		for {
-			(bid, consumerOpt) <- consumerMap
-			consumer <- consumerOpt
-		} yield KafkaBrokerInfo(id = bid, host = consumer.host, port = consumer.port)
-	}
+      topicList.sorted.flatMap(processTopic(group, _))
+    }
 
-	protected def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[KafkaOffsetInfo] = {
-		val topicList = if (topics.isEmpty) {
-			getTopicList(group)
-		} else {
-			topics
-		}
+    def brokerInfo(): Iterable[KafkaBrokerInfo] = {
+      for {
+        (bid, consumerOpt) <- consumerMap
+        consumer <- consumerOpt
+      } yield KafkaBrokerInfo(id = bid, host = consumer.host, port = consumer.port)
+    }
 
-		topicList.sorted.flatMap(processTopic(group, _))
-	}
+    val offset = offsetInfo(group, topics)
+    val broker = brokerInfo()
 
-	// get information about a consumer group and the topics it consumes
-	def getKafkaGroupInfo(group: String, topics: Seq[String] = Seq()): KafkaGroupInfo = {
-		val off = offsetInfo(group, topics)
-		val brok = brokerInfo()
-		KafkaGroupInfo(
-			group = group,
-			brokers = brok.toSeq,
-			offsets = off
-		)
-	}
+    KafkaGroupInfo(
+      group = group,
+      brokers = broker.toSeq,
+      offsets = offset
+    )
+  }
 
-	// get list of all topics
-	def getKafkaTopics: Seq[String] = {
-		try {
-			zkUtils.getChildren(ZkUtils.BrokerTopicsPath).sortWith(_ < _)
-		} catch {
-			case NonFatal(t) =>
-				error(s"could not get topics because of ${t.getMessage}", t)
-				Seq()
-		}
-	}
+  /**
+    * Get list of all topics
+    */
+  def getKafkaTopics: Seq[String] = {
+    try {
+      zkUtils.getChildren(ZkUtils.BrokerTopicsPath).sortWith(_ < _)
+    } catch {
+      case NonFatal(t) =>
+        error(s"could not get topics because of ${t.getMessage}", t)
+        Seq()
+    }
+  }
 
-	def getKafkaClusterViz: Node = {
-		val clusterNodes = zkUtils.getAllBrokersInCluster().map((broker) => {
-			Node(broker.toString(), Seq())
-		})
-		Node("KafkaCluster", clusterNodes)
-	}
+  def getKafkaClusterViz: Node = {
+    val clusterNodes = zkUtils.getAllBrokersInCluster().map((broker) => {
+      Node(broker.toString(), Seq())
+    })
+    Node("KafkaCluster", clusterNodes)
+  }
 
-	/**
-	  * Returns details for a given topic such as the consumers pulling off of it
-	  */
-	def getKafkaTopicDetails(topic: String): TopicDetails = {
-		val topicMap = getActiveTopicMap
+  /**
+    * Returns details for a given topic such as the consumers pulling off of it
+    */
+  def getKafkaTopicDetails(topic: String): TopicDetails = {
+    val topicMap = getActiveTopicMap
 
-		if (topicMap.contains(topic)) {
-			TopicDetails(topicMap(topic).map(consumer => {
-				ConsumerDetail(consumer.toString)
-			}).toSeq)
-		} else {
-			TopicDetails(Seq(ConsumerDetail("Unable to find Active Consumers")))
-		}
-	}
+    if (topicMap.contains(topic)) {
+      TopicDetails(topicMap(topic).map(consumer => {
+        ConsumerDetail(consumer.toString)
+      }).toSeq)
+    } else {
+      TopicDetails(Seq(ConsumerDetail("Unable to find Active Consumers")))
+    }
+  }
 
-	def mapConsumerDetails(consumers: Seq[String]): Seq[ConsumerDetail] =
-		consumers.map(consumer => ConsumerDetail(consumer.toString))
+  /**
+    * Returns details for a given topic such as the active consumers pulling off of it
+    * and for each of the active consumers it will return the consumer data
+    */
+  def getKafkaTopicAndConsumersDetails(topic: String): TopicAndConsumersDetailsWrapper = {
+    val topicMap = getTopicMap
+    val activeTopicMap = getActiveTopicMap
 
-	/**
-	  * Returns details for a given topic such as the active consumers pulling off of it
-	  * and for each of the active consumers it will return the consumer data
-	  */
-	def getKafkaTopicAndConsumersDetails(topic: String): TopicAndConsumersDetailsWrapper = {
-		val topicMap = getTopicMap
-		val activeTopicMap = getActiveTopicMap
+    def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
+      consumers.map(getKafkaGroupInfo(_, Seq(topic)))
 
-		val activeConsumers = if (activeTopicMap.contains(topic)) {
-			mapConsumersToKafkaInfo(activeTopicMap(topic), topic)
-		} else {
-			Seq()
-		}
+    val activeConsumers = if (activeTopicMap.contains(topic)) {
+      mapConsumersToKafkaInfo(activeTopicMap(topic), topic)
+    } else {
+      Seq()
+    }
 
-		val inactiveConsumers = if (!activeTopicMap.contains(topic) && topicMap.contains(topic)) {
-			mapConsumersToKafkaInfo(topicMap(topic), topic)
-		} else if (activeTopicMap.contains(topic) && topicMap.contains(topic)) {
-			mapConsumersToKafkaInfo(topicMap(topic).diff(activeTopicMap(topic)), topic)
-		} else {
-			Seq()
-		}
+    val inactiveConsumers = if (!activeTopicMap.contains(topic) && topicMap.contains(topic)) {
+      mapConsumersToKafkaInfo(topicMap(topic), topic)
+    } else if (activeTopicMap.contains(topic) && topicMap.contains(topic)) {
+      mapConsumersToKafkaInfo(topicMap(topic).diff(activeTopicMap(topic)), topic)
+    } else {
+      Seq()
+    }
 
-		TopicAndConsumersDetailsWrapper(TopicAndConsumersDetails(activeConsumers, inactiveConsumers))
-	}
+    TopicAndConsumersDetailsWrapper(TopicAndConsumersDetails(activeConsumers, inactiveConsumers))
+  }
 
-	def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
-		consumers.map(getKafkaGroupInfo(_, Seq(topic)))
+  def getKafkaActiveTopics: Node = {
+    val topicMap = getActiveTopicMap
 
+    Node("ActiveTopics", topicMap.map {
+      case (s: String, ss: Seq[String]) => {
+        Node(s, ss.map(consumer => Node(consumer)))
 
-	def getKafkaActiveTopics: Node = {
-		val topicMap = getActiveTopicMap
+      }
+    }.toSeq)
+  }
 
-		Node("ActiveTopics", topicMap.map {
-			case (s: String, ss: Seq[String]) => {
-				Node(s, ss.map(consumer => Node(consumer)))
+  def processPartition(group: String, topic: String, pid: Int): Option[KafkaOffsetInfo]
 
-			}
-		}.toSeq)
-	}
 }
 
 object OffsetGetter {
 
-	case class KafkaGroupInfo(group: String, brokers: Seq[KafkaBrokerInfo], offsets: Seq[KafkaOffsetInfo])
+  val kafkaOffsetListenerStarted: AtomicBoolean = new AtomicBoolean(false)
+  var zkUtils: ZkUtilsWrapper = null
+  var consumerConnector: ConsumerConnector = null
+  var newKafkaConsumer: KafkaConsumer[String, String] = null
 
-	case class KafkaBrokerInfo(id: Int, host: String, port: Int)
+  def createZkUtils(args: OffsetGetterArgs): ZkUtils = {
+    ZkUtils(
+      args.zk,
+      args.zkSessionTimeout.toMillis.toInt,
+      args.zkConnectionTimeout.toMillis.toInt,
+      JaasUtils.isZkSecurityEnabled()
+    )
+  }
 
-	case class KafkaOffsetInfo(group: String, topic: String, partition: Int, offset: Long, logSize: Long, owner: Option[String], creation: Time, modified: Time) {
-		val lag = logSize - offset
-	}
+  def getInstance(args: OffsetGetterArgs): OffsetGetter = {
 
-	val kafkaOffsetListenerStarted: AtomicBoolean = new AtomicBoolean(false)
-	var zkUtils: ZkUtilsWrapper = null
-	var consumerConnector: ConsumerConnector = null
-	var newKafkaConsumer: KafkaConsumer[String, String] = null
+    // create and initialize resources only once
+    if (kafkaOffsetListenerStarted.compareAndSet(false, true)) {
+      // needed for all OffsetGetters
+      zkUtils = new ZkUtilsWrapper(createZkUtils(args))
 
-	def createZkUtils(args: OffsetGetterArgs): ZkUtils = {
-		ZkUtils(
-			args.zk,
-			args.zkSessionTimeout.toMillis.toInt,
-			args.zkConnectionTimeout.toMillis.toInt,
-			JaasUtils.isZkSecurityEnabled()
-		)
-	}
+      // specific to kafka storage
+      if (args.offsetStorage.toLowerCase.equals("kafka")) {
+        val adminClientExecutor = Executors.newSingleThreadExecutor()
+        adminClientExecutor.submit(new Runnable() {
+          def run() = KafkaOffsetGetter.startAdminClient(args)
+        })
 
-	def getInstance(args: OffsetGetterArgs): OffsetGetter = {
+        val logEndOffsetExecutor = Executors.newSingleThreadExecutor()
+        logEndOffsetExecutor.submit(new Runnable() {
+          def run() = KafkaOffsetGetter.startLogEndOffsetGetter(args)
+        })
 
-		// create and initialize resources only once
-		if (kafkaOffsetListenerStarted.compareAndSet(false, true)) {
-			// needed for all OffsetGetters
-			zkUtils = new ZkUtilsWrapper(createZkUtils(args))
+        val committedOffsetExecutor = Executors.newSingleThreadExecutor()
+        committedOffsetExecutor.submit(new Runnable() {
+          def run() = KafkaOffsetGetter.startCommittedOffsetListener(args)
+        })
+      }
+    }
 
-			// specific to kafka storage
-			if (args.offsetStorage.toLowerCase.equals("kafka")) {
-				val adminClientExecutor = Executors.newSingleThreadExecutor()
-				adminClientExecutor.submit(new Runnable() {
-					def run() = KafkaOffsetGetter.startAdminClient(args)
-				})
+    args.offsetStorage.toLowerCase match {
+      case "kafka" =>
+        new KafkaOffsetGetter(zkUtils, args)
+      case _ =>
+        new ZKOffsetGetter(zkUtils)
+    }
+  }
 
-				val logEndOffsetExecutor = Executors.newSingleThreadExecutor()
-				logEndOffsetExecutor.submit(new Runnable() {
-					def run() = KafkaOffsetGetter.startLogEndOffsetGetter(args)
-				})
+  case class KafkaGroupInfo(group: String, brokers: Seq[KafkaBrokerInfo], offsets: Seq[KafkaOffsetInfo])
 
-				val committedOffsetExecutor = Executors.newSingleThreadExecutor()
-				committedOffsetExecutor.submit(new Runnable() {
-					def run() = KafkaOffsetGetter.startCommittedOffsetListener(args)
-				})
-			}
-		}
+  case class KafkaBrokerInfo(id: Int, host: String, port: Int)
 
-		args.offsetStorage.toLowerCase match {
-			case "kafka" =>
-				new KafkaOffsetGetter(zkUtils, args)
-			case _ =>
-				new ZKOffsetGetter(zkUtils)
-		}
-	}
+  case class KafkaOffsetInfo(group: String, topic: String, partition: Int, offset: Long, logSize: Long, owner: Option[String], creation: Time, modified: Time) {
+    val lag = logSize - offset
+  }
+
+
 }
