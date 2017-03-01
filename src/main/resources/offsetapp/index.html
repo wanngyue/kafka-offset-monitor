@@ -4,13 +4,13 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="">
-    <meta name="author" content="pierre">
+    <meta name="description" content="kafka-offset-monitor">
 
     <title>Kafka Offset Monitor</title>
 
     <!-- Bootstrap core CSS -->
     <link href="./css/bootstrap.3.0.3.min.css" rel="stylesheet">
+
     <link href="./css/style.css" rel="stylesheet">
     <link href="./css/cluster-viz.css" rel="stylesheet">
 
@@ -38,17 +38,16 @@
                 <span class="icon-bar"></span>
                 <span class="icon-bar"></span>
             </button>
-            <a class="navbar-brand" href="#">KafkaOffsetMonitor</a>
+            <a class="navbar-brand" href="#">kafka-offset-monitor</a>
         </div>
 
         <!-- Collect the nav links, forms, and other content for toggling -->
         <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
             <ul class="nav navbar-nav">
-                <li><a href="./#">Consumer Groups</a></li>
+                <li><a href="./#">Group List</a></li>
                 <li><a href="./#/topics">Topic List</a></li>
                 <li class="dropdown">
-                    <a href="javascript:void(0)" class="dropdown-toggle" data-toggle="dropdown">Visualizations <b
-                            class="caret"></b></a>
+                    <a href="javascript:void(0)" class="dropdown-toggle" data-toggle="dropdown">Visualizations <b class="caret"></b></a>
                     <ul class="dropdown-menu">
                         <li><a href="./#/activetopicsviz">Active Topic Consumers</a></li>
                         <li><a href="./#/clusterviz">Cluster Overview</a></li>
@@ -58,10 +57,9 @@
         </div><!-- /.navbar-collapse -->
     </div><!-- /.container-fluid -->
 </nav>
+
 <div class="container">
-
     <div ng-view></div>
-
 </div><!-- /.container -->
 
 
