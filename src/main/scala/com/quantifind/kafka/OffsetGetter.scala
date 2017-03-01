@@ -36,6 +36,11 @@ trait OffsetGetter extends Logging {
   def zkUtils: ZkUtilsWrapper
 
   /**
+    * For the given group, topic and partitionId return KafkaOffsetInfo with all info filled in
+    */
+  def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo]
+
+  /**
     * Get list of Kafka groups ever existed
     *
     * @return
@@ -50,8 +55,18 @@ trait OffsetGetter extends Logging {
     */
   def getKafkaTopicList(group: String): List[String]
 
+  /**
+    * Get mapping topic -> groups
+    *
+    * @return
+    */
   def getTopicToGroupsMap: Map[String, Seq[String]]
 
+  /**
+    * Get mapping active topics -> groups
+    *
+    * @return
+    */
   def getActiveTopicToGroupsMap: Map[String, Seq[String]]
 
   /**
@@ -173,8 +188,6 @@ trait OffsetGetter extends Logging {
     }.toSeq)
   }
 
-  def processPartition(group: String, topic: String, partitionId: Int): Option[KafkaOffsetInfo]
-
 }
 
 object OffsetGetter {
@@ -202,19 +215,23 @@ object OffsetGetter {
 
       // specific to kafka storage
       if (args.offsetStorage.toLowerCase.equals("kafka")) {
+
+        // admin client to get list of groups, topic, etc.
         val adminClientExecutor = Executors.newSingleThreadExecutor()
         adminClientExecutor.submit(new Runnable() {
           def run() = KafkaOffsetGetter.startAdminClient(args)
         })
 
-        val logEndOffsetExecutor = Executors.newSingleThreadExecutor()
-        logEndOffsetExecutor.submit(new Runnable() {
-          def run() = KafkaOffsetGetter.startLogEndOffsetGetter(args)
-        })
-
+        // consumer of internal kafka storage topic
         val committedOffsetExecutor = Executors.newSingleThreadExecutor()
         committedOffsetExecutor.submit(new Runnable() {
           def run() = KafkaOffsetGetter.startCommittedOffsetListener(args)
+        })
+
+        // specific consumer that updages topic logsize
+        val logEndOffsetExecutor = Executors.newSingleThreadExecutor()
+        logEndOffsetExecutor.submit(new Runnable() {
+          def run() = KafkaOffsetGetter.startLogsizeGetter(args)
         })
       }
     }

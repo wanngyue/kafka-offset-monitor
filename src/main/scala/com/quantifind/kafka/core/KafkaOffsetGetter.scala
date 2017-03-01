@@ -139,13 +139,13 @@ object KafkaOffsetGetter extends Logging {
 
     while (adminClient == null) {
       try {
-        info("Creating new Kafka AdminClient to get consumer and group info");
+        info("Creating new Kafka admin client")
         adminClient = AdminClient.create(props)
       }
 
       catch {
         case e: Throwable =>
-          error("Exception during creating Kafka AdminClient, retrying", e)
+          error("Exception during creating Kafka AdminClient, waiting and retrying", e)
           if (adminClient != null) {
             try {
               adminClient.close()
@@ -221,6 +221,7 @@ object KafkaOffsetGetter extends Logging {
         val messages: ConsumerRecords[Array[Byte], Array[Byte]] = offsetConsumer.poll(1000)
         val messageIterator = messages.iterator()
 
+        val updatedGroupTopicPartitions = mutable.Set[String]()
         while (messageIterator.hasNext()) {
 
           val message: ConsumerRecord[Array[Byte], Array[Byte]] = messageIterator.next()
@@ -233,21 +234,16 @@ object KafkaOffsetGetter extends Logging {
             val groupTopicPartition: GroupTopicPartition = messageOffsetMap._1
             val offsetAndMetadata: OffsetAndMetadata = messageOffsetMap._2
             kafkaGroupPartitionToOffsetMetadataMap += messageOffsetMap
-
-            {
-              val group = groupTopicPartition.group
-              val topic = groupTopicPartition.topicPartition.topic
-              val partition = groupTopicPartition.topicPartition.partition
-              val offset = offsetAndMetadata.offset
-
-              debug(s"Update group: $group, topic: $topic, partition: $partition, offset: $offset")
-            }
-
+            updatedGroupTopicPartitions += groupTopicPartition.group + " / " + groupTopicPartition.topicPartition.topic + " / " + groupTopicPartition.topicPartition.partition + " -> " + offsetAndMetadata.offset
           }
         }
+
+        updatedGroupTopicPartitions.foreach((s) =>{
+          info(s"Updating commited offset ${s}")
+        })
       } catch {
         case e: Throwable => {
-          error("An unhandled exception was thrown while reading messages from the committed offsets topic", e)
+          error("An unhandled exception was thrown while reading messages from the committed offsets topic, waiting and retrying", e)
           if (offsetConsumer != null) {
             try {
               offsetConsumer.close()
@@ -269,7 +265,9 @@ object KafkaOffsetGetter extends Logging {
 
     while (true) {
       try {
+
         while (adminClient == null) {
+          logger.info("Creating new Kafka admin client")
           adminClient = createNewAdminClient(args)
         }
 
@@ -327,7 +325,7 @@ object KafkaOffsetGetter extends Logging {
         Thread.sleep(sleepDurationMillis)
       } catch {
         case e: Throwable =>
-          error("Kafka AdminClient processing aborted due to an unexpected exception, closing and restarting", e)
+          error("Kafka AdminClient processing aborted due to an unexpected exception, waiting and rertrying", e)
           if (null != adminClient) {
             try {
               adminClient.close()
@@ -341,20 +339,22 @@ object KafkaOffsetGetter extends Logging {
     }
   }
 
-  def startLogEndOffsetGetter(args: OffsetGetterArgs) = {
+  def startLogsizeGetter(args: OffsetGetterArgs) = {
 
     val sleepOnDataRetrieval: Int = 10000
-    val sleepOnError: Int = 30000
     var logsizeKafkaConsumer: KafkaConsumer[Array[Byte], Array[Byte]] = null
 
     while (true) {
       try {
         while (logsizeKafkaConsumer == null) {
+          logger.info("Creating new Kafka client to get topic logsize")
           logsizeKafkaConsumer = createNewKafkaConsumer(args, kafkaOffsetLogsizeGroup)
         }
 
         kafkaTopicToPartitionInfosMap = JavaConversions.mapAsScalaMap(logsizeKafkaConsumer.listTopics()).toMap
-        val distinctPartitionInfo: Seq[PartitionInfo] = (kafkaTopicToPartitionInfosMap.values).flatten(listPartitionInfo => JavaConversions.asScalaBuffer(listPartitionInfo)).toSeq
+        val distinctPartitionInfo: Seq[PartitionInfo] = (kafkaTopicToPartitionInfosMap.values).flatten(
+          listPartitionInfo => JavaConversions.asScalaBuffer(listPartitionInfo)
+        ).toSeq
 
         // Iterate over each distinct PartitionInfo
         distinctPartitionInfo.foreach(partitionInfo => {
@@ -364,6 +364,7 @@ object KafkaOffsetGetter extends Logging {
           logsizeKafkaConsumer.seekToEnd(Arrays.asList(topicPartition))
           val logsize: Long = logsizeKafkaConsumer.position(topicPartition)
 
+          info(s"Updating logsize topic ${partitionInfo.topic()} / partition ${partitionInfo.partition()} -> ${logsize}")
           kafkaTopicPartitionToLogsizeMap.put(topicPartition, logsize)
         })
 
@@ -371,7 +372,7 @@ object KafkaOffsetGetter extends Logging {
       }
       catch {
         case e: Throwable => {
-          error("The Kafka Client reading topic/partition logsizes has thrown an unhandled exception, closing and restarting", e)
+          error("The Kafka Client reading topic/partition logsizes has thrown an unhandled exception, waiting and restarting", e)
           if (logsizeKafkaConsumer != null) {
             try {
               logsizeKafkaConsumer.close()
