@@ -100,6 +100,14 @@ class ZKOffsetGetter(theZkUtils: ZkUtilsWrapper) extends OffsetGetter {
     }
   }
 
+  override def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]] = {
+    try {
+      zkUtils.getPartitionsForTopics(Seq(topic))
+    } catch {
+      case _: ZkNoNodeException => Map()
+    }
+  }
+
   override def getTopicToGroupsMap: Map[String, Seq[String]] = {
     try {
       zkUtils.getChildren(ZkUtils.ConsumersPath).flatMap {

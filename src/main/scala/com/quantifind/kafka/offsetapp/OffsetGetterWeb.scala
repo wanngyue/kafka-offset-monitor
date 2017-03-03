@@ -133,7 +133,6 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
         val groups = getKafkaGroups(args)
         JsonContent ~> ResponseString(write(groups))
 
-        // TODO: fix missing brokers
       case GET(Path(Seg("group" :: group :: Nil))) =>
         val info = getKafkaGroupInfo(group, args)
         JsonContent ~> ResponseString(write(info)) ~> Ok

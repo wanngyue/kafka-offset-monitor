@@ -55,6 +55,14 @@ trait OffsetGetter extends Logging {
     */
   def getKafkaTopicList(group: String): List[String]
 
+
+  /**
+    * Get map of Kafka topic to list of partitions
+    * @param topic
+    * @return
+    */
+  def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]]
+
   /**
     * Get mapping topic -> groups
     *
@@ -72,12 +80,14 @@ trait OffsetGetter extends Logging {
   /**
     * Get information about a consumer group and the topics it consumes
     */
-  def getKafkaGroupInfo(group: String, topics: Seq[String] = Seq()): KafkaGroupInfo = {
+  def getKafkaGroupInfo(group: String): KafkaGroupInfo = {
 
-    def offsetInfo(group: String, topics: Seq[String] = Seq()): Seq[KafkaOffsetInfo] = {
+    def offsetInfo(group: String): Seq[KafkaOffsetInfo] = {
 
       def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
-        val topicToPartitionsMap = zkUtils.getPartitionsForTopics(Seq(topic))
+
+        val topicToPartitionsMap = getKafkaTopicPartitions(topic)
+
         for {
           partitions <- topicToPartitionsMap.get(topic).toSeq
           partitionId <- partitions.sorted
@@ -85,13 +95,7 @@ trait OffsetGetter extends Logging {
         } yield info
       }
 
-      val topicList =
-        if (topics.isEmpty) {
-          getKafkaTopicList(group)
-        } else {
-          topics
-        }
-
+      val topicList = getKafkaTopicList(group)
       topicList.sorted.flatMap(processTopic(group, _))
     }
 
@@ -101,7 +105,7 @@ trait OffsetGetter extends Logging {
       }
     }
 
-    val kafkaOffsetsInfo = offsetInfo(group, topics)
+    val kafkaOffsetsInfo = offsetInfo(group)
     // available only for zookeeper storage
     val kafkaBrokersInfo = brokerInfo()
 
@@ -156,7 +160,7 @@ trait OffsetGetter extends Logging {
     val activeTopicToGroupsMap = getActiveTopicToGroupsMap
 
     def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
-      consumers.map(getKafkaGroupInfo(_, Seq(topic)))
+      consumers.map(getKafkaGroupInfo(_))
 
     val activeConsumers =
       if (activeTopicToGroupsMap.contains(topic)) {

@@ -19,6 +19,7 @@ import org.apache.kafka.clients.consumer._
 import org.apache.kafka.common.{PartitionInfo, TopicPartition}
 
 import scala.collection._
+import scala.collection.JavaConverters._
 
 /**
   * Kafka offset getter from Kafka storage
@@ -74,7 +75,7 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     kafkaTopicGroups.filter(_.group == group).groupBy(_.topic).keySet.toList.sorted
   }
 
-  override def getTopicToGroupsMap: Map[String, scala.Seq[String]] = {
+  override def getTopicToGroupsMap: Map[String, Seq[String]] = {
     kafkaTopicGroups.groupBy(_.topic).mapValues(_.map(_.group).toSeq)
   }
 
@@ -86,9 +87,15 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     kafkaTopicToPartitionInfosMap.keys.toSeq.sorted
   }
 
+  override def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]] = {
+    kafkaTopicToPartitionInfosMap map {
+      case (topic: String, partitionInfos) => (topic, partitionInfos map {case (pi) => pi.partition()})
+    }
+  }
+
   override def getKafkaClusterViz: Node = {
     val clusterNodes = kafkaTopicToPartitionInfosMap.values.map(partition => {
-      val leader = partition.get(0).leader()
+      val leader = partition.head.leader()
       Node(leader.host() + ":" + leader.port())
     }).toSet.toSeq.sortWith(_.name < _.name)
     Node("Cluster", clusterNodes)
@@ -112,7 +119,7 @@ object KafkaOffsetGetter extends Logging {
   var kafkaActiveTopicPartitions: immutable.Set[TopicAndPartition] = immutable.HashSet()
   var kafkaClients: immutable.Set[KafkaClientGroup] = immutable.HashSet()
   var kafkaTopicGroups: immutable.Set[KafkaTopicGroup] = immutable.HashSet()
-  var kafkaTopicToPartitionInfosMap: immutable.Map[String, util.List[PartitionInfo]] = immutable.HashMap()
+  var kafkaTopicToPartitionInfosMap: immutable.Map[String, List[PartitionInfo]] = immutable.HashMap()
 
   private def createNewKafkaConsumer(args: OffsetGetterArgs, group: String): KafkaConsumer[Array[Byte], Array[Byte]] = {
 
@@ -351,9 +358,12 @@ object KafkaOffsetGetter extends Logging {
           logsizeKafkaConsumer = createNewKafkaConsumer(args, kafkaOffsetLogsizeGroup)
         }
 
-        kafkaTopicToPartitionInfosMap = JavaConversions.mapAsScalaMap(logsizeKafkaConsumer.listTopics()).toMap
+        kafkaTopicToPartitionInfosMap =
+          JavaConversions.mapAsScalaMap(logsizeKafkaConsumer.listTopics()).toMap map {
+            case (topic, partitionInfos: util.List[PartitionInfo]) => (topic, partitionInfos.asScala.toList)
+        }
         val distinctPartitionInfo: Seq[PartitionInfo] = (kafkaTopicToPartitionInfosMap.values).flatten(
-          listPartitionInfo => JavaConversions.asScalaBuffer(listPartitionInfo)
+          listPartitionInfo => listPartitionInfo
         ).toSeq
 
         // Iterate over each distinct PartitionInfo
