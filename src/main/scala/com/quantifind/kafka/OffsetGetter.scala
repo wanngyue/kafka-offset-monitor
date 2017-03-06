@@ -10,6 +10,7 @@ import com.quantifind.utils.ZkUtilsWrapper
 import com.twitter.util.Time
 import kafka.consumer.{ConsumerConnector, SimpleConsumer}
 import kafka.utils.{Logging, ZkUtils}
+import org.I0Itec.zkclient.exception.ZkNoNodeException
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.security.JaasUtils
 
@@ -55,14 +56,6 @@ trait OffsetGetter extends Logging {
     */
   def getKafkaTopicList(group: String): List[String]
 
-
-  /**
-    * Get map of Kafka topic to list of partitions
-    * @param topic
-    * @return
-    */
-  def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]]
-
   /**
     * Get mapping topic -> groups
     *
@@ -85,6 +78,14 @@ trait OffsetGetter extends Logging {
     def offsetInfo(group: String): Seq[KafkaOffsetInfo] = {
 
       def processTopic(group: String, topic: String): Seq[KafkaOffsetInfo] = {
+
+        def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]] = {
+          try {
+            zkUtils.getPartitionsForTopics(Seq(topic))
+          } catch {
+            case _: ZkNoNodeException => Map()
+          }
+        }
 
         val topicToPartitionsMap = getKafkaTopicPartitions(topic)
 

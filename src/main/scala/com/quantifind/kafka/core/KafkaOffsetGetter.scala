@@ -87,12 +87,6 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
     kafkaTopicToPartitionInfosMap.keys.toSeq.sorted
   }
 
-  override def getKafkaTopicPartitions(topic: String): Map[String, Seq[Int]] = {
-    kafkaTopicToPartitionInfosMap map {
-      case (topic: String, partitionInfos) => (topic, partitionInfos map {case (pi) => pi.partition()})
-    }
-  }
-
   override def getKafkaClusterViz: Node = {
     val clusterNodes = kafkaTopicToPartitionInfosMap.values.map(partition => {
       val leader = partition.head.leader()
@@ -245,7 +239,7 @@ object KafkaOffsetGetter extends Logging {
           }
         }
 
-        updatedGroupTopicPartitions.foreach((s) =>{
+        updatedGroupTopicPartitions.foreach((s) => {
           info(s"Updating commited offset ${s}")
         })
       } catch {
@@ -361,7 +355,7 @@ object KafkaOffsetGetter extends Logging {
         kafkaTopicToPartitionInfosMap =
           JavaConversions.mapAsScalaMap(logsizeKafkaConsumer.listTopics()).toMap map {
             case (topic, partitionInfos: util.List[PartitionInfo]) => (topic, partitionInfos.asScala.toList)
-        }
+          }
         val distinctPartitionInfo: Seq[PartitionInfo] = (kafkaTopicToPartitionInfosMap.values).flatten(
           listPartitionInfo => listPartitionInfo
         ).toSeq
