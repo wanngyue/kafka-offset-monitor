@@ -1,9 +1,8 @@
 package com.quantifind.kafka.offsetapp
 
 import scala.slick.driver.SQLiteDriver.simple._
-import scala.slick.jdbc.JdbcBackend
+import scala.slick.jdbc.{JdbcBackend, StaticQuery}
 import scala.slick.jdbc.meta.MTable
-
 import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetDB.{DbOffsetInfo, OffsetHistory, OffsetPoints}
 import com.twitter.util.Time
@@ -71,6 +70,7 @@ class OffsetDB(dbfile: String) {
     database.withSession {
       implicit s =>
         offsets.filter(_.timestamp < since).delete
+        StaticQuery.updateNA("VACUUM").execute
     }
   }
 
