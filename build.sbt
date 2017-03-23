@@ -1,5 +1,5 @@
 name := "KafkaOffsetMonitor"
-version := "0.5.2-SNAPSHOT"
+version := "0.5.3-SNAPSHOT"
 scalaVersion := "2.11.8"
 organization := "com.quantifind"
 
@@ -14,9 +14,9 @@ libraryDependencies ++= Seq(
   "net.databinder" %% "unfiltered-json4s" % "0.8.4",
   "com.quantifind" %% "sumac" % "0.3.0",
   "org.apache.kafka" %% "kafka" % "0.10.2.0",
-  "com.twitter" %% "util-core" % "6.40.0",
+  "com.twitter" %% "util-core" % "6.42.0",
   "com.typesafe.slick" %% "slick" % "2.1.0",
-  "org.xerial" % "sqlite-jdbc" % "3.7.2",
+  "org.xerial" % "sqlite-jdbc" % "3.16.1",
   "org.mockito" % "mockito-all" % "1.10.19" % "test",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test")
 
