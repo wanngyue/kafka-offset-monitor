@@ -27,7 +27,7 @@ class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
   @Required
   var refresh: FiniteDuration = _
 
-  var cleanupBackoff : FiniteDuration = new FiniteDuration(60000, TimeUnit.MILLISECONDS)
+  var cleanupBackoff : FiniteDuration = new FiniteDuration(6, TimeUnit.HOURS)
 
   var dbName: String = "offsetapp"
 
