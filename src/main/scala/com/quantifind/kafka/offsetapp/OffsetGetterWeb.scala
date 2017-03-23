@@ -27,6 +27,8 @@ class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
   @Required
   var refresh: FiniteDuration = _
 
+  var cleanupBackoff : FiniteDuration = new FiniteDuration(60000, TimeUnit.MILLISECONDS)
+
   var dbName: String = "offsetapp"
 
   lazy val db = new OffsetDB(dbName)
@@ -49,7 +51,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
   var dbReporter: SQLiteOffsetInfoReporter = null
 
-  def reportOffsets(args: OWArgs) {
+  def reportOffsets(args: OWArgs) : Unit = {
     val groups = getKafkaGroups(args)
     groups.foreach {
       g =>
@@ -61,8 +63,13 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     }
   }
 
+  def cleanupOldData(args: OWArgs): Unit = {
+    dbReporter.cleanupOldData()
+  }
+
   def schedule(args: OWArgs) {
     scheduler.scheduleAtFixedRate(() => {reportOffsets(args)}, 0, args.refresh.toMillis, TimeUnit.MILLISECONDS)
+    scheduler.scheduleAtFixedRate(() => {cleanupOldData(args)},0, args.cleanupBackoff.toMillis, TimeUnit.MILLISECONDS)
   }
 
   // -------------------------------------------------------------------------------------------------------------------
