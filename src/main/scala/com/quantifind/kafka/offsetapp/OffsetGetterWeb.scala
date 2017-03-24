@@ -135,7 +135,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     // converting Scala datatypes to JSON format
     implicit val formats = Serialization.formats(NoTypeHints) + new TimeSerializer
     // define web application mapping
-    def intent: Plan.Intent = {
+    def intent = unfiltered.kit.GZip {
       case GET(Path(Seg("group" :: Nil))) =>
         val groups = getKafkaGroups(args)
         JsonContent ~> ResponseString(write(groups))
