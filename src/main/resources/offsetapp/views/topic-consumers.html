@@ -21,34 +21,34 @@
         </tr>
         </thead>
         <tbody>
-        <tr ng-repeat="c in info.consumers.active">
+        <tr ng-repeat="c in info.active">
             <td>
-                {{c.name}}
+                {{c.group}}
             </td>
         </tr>
-        <tr ng-show="info.consumers.active.length == 0">
+        <tr ng-show="info.active.length == 0">
             <td>No active consumers found</td>
         </tr>
         </tbody>
     </table>
 
     <h2>Active Consumers Offsets</h2>
-    <div ng-repeat="info in info.consumers.active">
+    <div ng-repeat="info in info.active">
         <div ng-include="'views/includes/group.inc.html'">
         </div>
     </div>
-    <div ng-show="info.consumers.active.length == 0">
+    <div ng-show="info.active.length == 0">
         No active consumers found
     </div>
 
     <hr/>
 
     <h2>Inactive Consumers Offsets</h2>
-    <div ng-repeat="info in info.consumers.inactive">
+    <div ng-repeat="info in info.inactive">
         <div ng-include="'views/includes/group.inc.html'">
         </div>
     </div>
-    <div ng-show="info.consumers.inactive.length == 0">
+    <div ng-show="info.inactive.length == 0">
         No inactive consumers found
     </div>
 
