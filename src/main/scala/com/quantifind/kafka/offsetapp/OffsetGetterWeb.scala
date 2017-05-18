@@ -2,10 +2,11 @@ package com.quantifind.kafka.offsetapp
 
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 
-import com.quantifind.kafka.{OffsetGetter, TopicDetails}
+import com.quantifind.kafka.{OffsetGetter}
 import com.quantifind.kafka.OffsetGetter.KafkaGroupInfo
 import com.quantifind.kafka.offsetapp.sqlite.SQLiteOffsetInfoReporter
 import com.quantifind.sumac.validation.Required
+import com.quantifind.utils.Utils.retry
 import com.quantifind.utils.UnfilteredWebApp
 import com.twitter.util.Time
 import kafka.utils.Logging
@@ -18,6 +19,7 @@ import unfiltered.response.{JsonContent, Ok, ResponseString}
 
 import scala.concurrent.duration._
 import scala.language.implicitConversions
+import scala.util.control.NonFatal
 
 class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
 
@@ -27,7 +29,7 @@ class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
   @Required
   var refresh: FiniteDuration = _
 
-  var cleanupBackoff : FiniteDuration = new FiniteDuration(6, TimeUnit.HOURS)
+  var cleanupBackoff: FiniteDuration = new FiniteDuration(6, TimeUnit.HOURS)
 
   var dbName: String = "offsetapp"
 
@@ -51,25 +53,49 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
   var dbReporter: SQLiteOffsetInfoReporter = null
 
-  def reportOffsets(args: OWArgs) : Unit = {
+  def retryTask[T](fn: => T) {
+    try {
+      retry(3) {
+        fn
+      }
+    } catch {
+      case NonFatal(e) =>
+        error("Failed to run scheduled task", e)
+    }
+  }
+
+  def reportOffsets(args: OWArgs): Unit = {
     val groups = getKafkaGroups(args)
     groups.foreach {
       g =>
-        val inf = getKafkaGroupInfo(g, args).offsets.toIndexedSeq
-        if (dbReporter != null) {
-          debug(s"reporting ${inf.size}")
-          dbReporter.report(inf)
+        try {
+          val inf = getKafkaGroupInfo(g, args).offsets.toIndexedSeq
+          if (dbReporter != null) {
+            debug(s"reporting ${inf.size}")
+            retryTask {
+              dbReporter.report(inf)
+            }
+          }
+        } catch {
+          case NonFatal(t) =>
+            error(s"could not report offsets for group $g", t)
         }
     }
   }
 
   def cleanupOldData(args: OWArgs): Unit = {
-    dbReporter.cleanupOldData()
+    retryTask {
+      dbReporter.cleanupOldData()
+    }
   }
 
   def schedule(args: OWArgs) {
-    scheduler.scheduleAtFixedRate(() => {reportOffsets(args)}, 0, args.refresh.toMillis, TimeUnit.MILLISECONDS)
-    scheduler.scheduleAtFixedRate(() => {cleanupOldData(args)},0, args.cleanupBackoff.toMillis, TimeUnit.MILLISECONDS)
+    scheduler.scheduleAtFixedRate(() => {
+      reportOffsets(args)
+    }, 0, args.refresh.toMillis, TimeUnit.MILLISECONDS)
+    scheduler.scheduleAtFixedRate(() => {
+      cleanupOldData(args)
+    }, 0, args.cleanupBackoff.toMillis, TimeUnit.MILLISECONDS)
   }
 
   // -------------------------------------------------------------------------------------------------------------------
@@ -134,6 +160,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
     // converting Scala datatypes to JSON format
     implicit val formats = Serialization.formats(NoTypeHints) + new TimeSerializer
+
     // define web application mapping
     def intent = unfiltered.kit.GZip {
       case GET(Path(Seg("group" :: Nil))) =>

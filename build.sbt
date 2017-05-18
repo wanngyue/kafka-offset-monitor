@@ -1,5 +1,5 @@
 name := "KafkaOffsetMonitor"
-version := "0.5.3-SNAPSHOT"
+version := "0.5.4-SNAPSHOT"
 scalaVersion := "2.11.8"
 organization := "com.quantifind"
 

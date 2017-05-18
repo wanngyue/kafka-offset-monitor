@@ -98,7 +98,7 @@ class KafkaOffsetGetter(zkUtilsWrapper: ZkUtilsWrapper, args: OffsetGetterArgs) 
 
 object KafkaOffsetGetter extends Logging {
 
-  val sleepAfterFailureMillis: Long = 5000;
+  val sleepAfterFailureMillis: Long = 5000
 
   val kafkaOffsetLogsizeGroup = "kafka-monitor-logsize"
   val kafkaOffsetCommitsGroup = "kafka-monitor-commits"
