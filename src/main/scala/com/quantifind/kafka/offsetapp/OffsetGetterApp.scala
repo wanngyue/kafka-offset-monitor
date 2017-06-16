@@ -26,7 +26,7 @@ class OffsetGetterArgsWGT extends OffsetGetterArgs {
 
 class OffsetGetterArgs extends FieldArgs {
 
-  var offsetStorage: String = "zookeeper"
+  var offsetStorage: String = "kafka"
 
   var kafkaBrokers: String = _
 

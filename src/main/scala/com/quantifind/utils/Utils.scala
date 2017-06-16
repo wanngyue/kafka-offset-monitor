@@ -2,6 +2,8 @@ package com.quantifind.utils
 
 import java.net.InetAddress
 
+import scala.collection.concurrent.TrieMap
+import scala.collection.{concurrent, immutable, mutable}
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -18,15 +20,24 @@ object Utils {
     *
     * @return
     */
+  val kafkaHostToHostnameMap: TrieMap[String, String] = concurrent.TrieMap[String, String]()
+
   final def convertKafkaHostToHostname(kafkaHost: String): String = {
-    if (kafkaHost.matches("/\\d+\\.\\d+\\.\\d+\\.\\d+")) {
-      try {
-        return InetAddress.getByName(kafkaHost.substring(1)).getHostName
-      } catch {
-        case ex: Throwable => ()
-      }
+    kafkaHostToHostnameMap.get(kafkaHost) match {
+      case cachedResult: Some[String] => cachedResult.get
+      case _ =>
+        if (kafkaHost.matches("/\\d+\\.\\d+\\.\\d+\\.\\d+")) {
+          try {
+            val resolvedKafkaHost: String = InetAddress.getByName(kafkaHost.substring(1)).getHostName
+            kafkaHostToHostnameMap += (kafkaHost -> resolvedKafkaHost)
+            resolvedKafkaHost
+          } catch {
+            case ex: Throwable => kafkaHost
+          }
+        } else {
+          kafkaHost
+        }
     }
-    return kafkaHost
   }
 
   // Returning T, throwing the exception on failure

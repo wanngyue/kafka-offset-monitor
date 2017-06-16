@@ -2,7 +2,6 @@ package com.quantifind.kafka.core
 
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.utils.ZkUtilsWrapper
-import java.nio.{BufferUnderflowException, ByteBuffer}
 
 import kafka.api.{OffsetRequest, OffsetResponse, PartitionOffsetsResponse}
 import kafka.common.{OffsetAndMetadata, OffsetMetadata, TopicAndPartition}
@@ -15,13 +14,12 @@ import org.mockito.Mockito._
 import org.mockito.{Mockito, Matchers => MockitoMatchers}
 import org.scalatest._
 
-
 class KafkaOffsetGetterSpec extends FlatSpec with ShouldMatchers {
 
   trait Fixture {
 
-    val mockedZkUtil =  Mockito.mock(classOf[ZkUtilsWrapper])
-    val mockedConsumer = Mockito.mock(classOf[SimpleConsumer])
+    val mockedZkUtil: ZkUtilsWrapper = Mockito.mock(classOf[ZkUtilsWrapper])
+    val mockedConsumer: SimpleConsumer = Mockito.mock(classOf[SimpleConsumer])
     val testPartitionLeader = 1
 
     val args = new OffsetGetterArgs
@@ -43,11 +41,11 @@ class KafkaOffsetGetterSpec extends FlatSpec with ShouldMatchers {
     val groupTopicPartition = GroupTopicPartition(testGroup, new TopicPartition(testTopic, testPartition))
     val offsetAndMetadata = OffsetAndMetadata(committedOffset, "meta", System.currentTimeMillis)
 
-    KafkaOffsetGetter.kafkaGroupPartitionToOffsetMetadataMap += (groupTopicPartition -> offsetAndMetadata)
+    KafkaOffsetGetter.kafkaGroupTopicPartitionToOffsetAndMetadataMap += (groupTopicPartition -> offsetAndMetadata)
     KafkaOffsetGetter.kafkaTopicPartitionToLogsizeMap += (topicPartition -> logEndOffset)
 
     when(mockedZkUtil.getLeaderForPartition(MockitoMatchers.eq(testTopic), MockitoMatchers.eq(testPartition)))
-        .thenReturn(Some(testPartitionLeader))
+      .thenReturn(Some(testPartitionLeader))
 
     val partitionErrorAndOffsets = Map(topicAndPartition -> PartitionOffsetsResponse(0, Seq(logEndOffset)))
     val offsetResponse = OffsetResponse(1, partitionErrorAndOffsets)

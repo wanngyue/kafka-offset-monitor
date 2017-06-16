@@ -131,8 +131,8 @@ trait OffsetGetter extends Logging {
   }
 
   def getKafkaClusterViz: Node = {
-    val clusterNodes = zkUtils.getAllBrokersInCluster().map((broker) => {
-      Node(broker.toString(), Seq())
+    val clusterNodes = zkUtils.getAllBrokersInCluster.map((broker) => {
+      Node(broker.toString, Seq())
     })
     Node("KafkaCluster", clusterNodes)
   }
@@ -161,7 +161,7 @@ trait OffsetGetter extends Logging {
     val activeTopicToGroupsMap = getActiveTopicToGroupsMap
 
     def mapConsumersToKafkaInfo(consumers: Seq[String], topic: String): Seq[KafkaGroupInfo] =
-      consumers.map(getKafkaGroupInfo(_))
+      consumers.map(getKafkaGroupInfo)
 
     val activeConsumers =
       if (activeTopicToGroupsMap.contains(topic)) {
@@ -224,19 +224,19 @@ object OffsetGetter {
         // admin client to get list of groups, topic, etc.
         val adminClientExecutor = Executors.newSingleThreadExecutor()
         adminClientExecutor.submit(new Runnable() {
-          def run() = KafkaOffsetGetter.startAdminClient(args)
+          def run(): Unit = KafkaOffsetGetter.startAdminClient(args)
         })
 
         // consumer of internal kafka storage topic
         val committedOffsetExecutor = Executors.newSingleThreadExecutor()
         committedOffsetExecutor.submit(new Runnable() {
-          def run() = KafkaOffsetGetter.startCommittedOffsetListener(args)
+          def run(): Unit = KafkaOffsetGetter.startCommittedOffsetListener(args)
         })
 
         // specific consumer that updages topic logsize
         val logEndOffsetExecutor = Executors.newSingleThreadExecutor()
         logEndOffsetExecutor.submit(new Runnable() {
-          def run() = KafkaOffsetGetter.startLogsizeGetter(args)
+          def run(): Unit = KafkaOffsetGetter.startLogsizeGetter(args)
         })
       }
     }
@@ -244,8 +244,6 @@ object OffsetGetter {
     args.offsetStorage.toLowerCase match {
       case "kafka" =>
         new KafkaOffsetGetter(zkUtils, args)
-      case _ =>
-        new ZKOffsetGetter(zkUtils)
     }
   }
 

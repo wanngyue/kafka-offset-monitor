@@ -15,7 +15,6 @@ Offset Types
 Kafka is flexible on how the offsets are managed. Consumer can choose arbitrary storage and format to persist offsets. kafka-offset-monitor currently supports following popular storage formats
 
 * kafka built-in offset management API (based on broker metadata and Kafka's own internal __consumer_offsets topic)
-* zookeeper built-in high-level consumer (based on Zookeeper)
 
 Each runtime instance of KafkaOffsetMonitor can only support a single type of storage format.
 
@@ -50,7 +49,7 @@ java -cp KafkaOffsetMonitor-assembly*.jar \
 
 The arguments are:
 
-- **offsetStorage** valid options are ''kafka'' or ''zookeeper''. Anything else falls back to ''zookeeper''
+- **offsetStorage** valid options is ''kafka''.
 - **zk** the ZooKeeper hosts
 - **kafkaBrokers** comma-separated list of Kafka broker hosts (ex. "host1:port,host2:port').  Required only when using offsetStorage "kafka".
 - **kafkaSecurityProtocol** security protocol to use when connecting to kafka brokers (default: ''PLAINTEXT'', optional: ''SASL_PLAINTEXT'')

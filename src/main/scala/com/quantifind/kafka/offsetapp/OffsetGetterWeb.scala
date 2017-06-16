@@ -2,7 +2,7 @@ package com.quantifind.kafka.offsetapp
 
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 
-import com.quantifind.kafka.{OffsetGetter}
+import com.quantifind.kafka.{Node, OffsetGetter, TopicAndConsumersDetails, TopicDetails}
 import com.quantifind.kafka.OffsetGetter.KafkaGroupInfo
 import com.quantifind.kafka.offsetapp.sqlite.SQLiteOffsetInfoReporter
 import com.quantifind.sumac.validation.Required
@@ -12,7 +12,7 @@ import com.twitter.util.Time
 import kafka.utils.Logging
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
-import org.json4s.{CustomSerializer, JInt, NoTypeHints}
+import org.json4s.{CustomSerializer, Formats, JInt, NoTypeHints}
 import unfiltered.filter.Plan
 import unfiltered.request.{GET, Path, Seg}
 import unfiltered.response.{JsonContent, Ok, ResponseString}
@@ -43,15 +43,17 @@ class OWArgs extends OffsetGetterArgs with UnfilteredWebApp.Arguments {
   */
 object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
-  implicit def funToRunnable(fun: () => Unit) = new Runnable() {
-    def run() = fun()
+  implicit def funToRunnable(fun: () => Unit): Runnable {
+    def run(): Unit
+  } = new Runnable() {
+    def run(): Unit = fun()
   }
 
   def htmlRoot: String = "/offsetapp"
 
   val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
-  var dbReporter: SQLiteOffsetInfoReporter = null
+  var dbReporter: SQLiteOffsetInfoReporter = _
 
   def retryTask[T](fn: => T) {
     try {
@@ -85,7 +87,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
 
   def cleanupOldData(args: OWArgs): Unit = {
     retryTask {
-      dbReporter.cleanupOldData()
+      dbReporter.cleanupOldData
     }
   }
 
@@ -114,27 +116,27 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     _.getKafkaGroupInfo(group)
   }
 
-  def getKafkaGroups(args: OWArgs) = withOG(args) {
+  def getKafkaGroups(args: OWArgs): Seq[String] = withOG(args) {
     _.getKafkaGroups
   }
 
-  def getKafkaActiveTopics(args: OWArgs) = withOG(args) {
+  def getKafkaActiveTopics(args: OWArgs): Node = withOG(args) {
     _.getKafkaActiveTopics
   }
 
-  def getKafkaTopics(args: OWArgs) = withOG(args) {
+  def getKafkaTopics(args: OWArgs): Seq[String] = withOG(args) {
     _.getKafkaTopics
   }
 
-  def getKafkaTopicDetails(topic: String, args: OWArgs) = withOG(args) {
+  def getKafkaTopicDetails(topic: String, args: OWArgs): TopicDetails = withOG(args) {
     _.getKafkaTopicDetails(topic)
   }
 
-  def getKafkaTopicConsumersDetails(topic: String, args: OWArgs) = withOG(args) {
+  def getKafkaTopicConsumersDetails(topic: String, args: OWArgs): TopicAndConsumersDetails = withOG(args) {
     _.getKafkaTopicAndConsumersDetails(topic)
   }
 
-  def getKafkaClusterViz(args: OWArgs) = withOG(args) {
+  def getKafkaClusterViz(args: OWArgs): Node = withOG(args) {
     _.getKafkaClusterViz
   }
 
@@ -144,7 +146,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     * Custom serializer Scala Time <-> epoch time
     */
   class TimeSerializer extends CustomSerializer[Time](
-    format => ( {
+    _ => ( {
       case JInt(s) => Time.fromMilliseconds(s.toLong)
     }, {
       case x: Time => JInt(x.inMilliseconds)
@@ -159,7 +161,7 @@ object OffsetGetterWeb extends UnfilteredWebApp[OWArgs] with Logging {
     schedule(args)
 
     // converting Scala datatypes to JSON format
-    implicit val formats = Serialization.formats(NoTypeHints) + new TimeSerializer
+    implicit val formats: Formats = Serialization.formats(NoTypeHints) + new TimeSerializer
 
     // define web application mapping
     def intent = unfiltered.kit.GZip {

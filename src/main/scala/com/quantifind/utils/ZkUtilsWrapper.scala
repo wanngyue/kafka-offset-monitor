@@ -13,9 +13,9 @@ import scala.collection.mutable
   */
 class ZkUtilsWrapper(zkUtils: ZkUtils) {
 
-  val delegator: ZkUtils = zkUtils
-
   val ConsumersPath = ZkUtils.ConsumersPath
+
+  val delegator: ZkUtils = zkUtils
 
   def readDataMaybeNull(path: String): (Option[String], Stat) = {
     delegator.readDataMaybeNull(path)
@@ -41,7 +41,7 @@ class ZkUtilsWrapper(zkUtils: ZkUtils) {
     delegator.getChildren(path)
   }
 
-  def getAllBrokersInCluster(): Seq[Broker] = {
+  def getAllBrokersInCluster: Seq[Broker] = {
     delegator.getAllBrokersInCluster()
   }
 

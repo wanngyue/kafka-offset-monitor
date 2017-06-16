@@ -9,7 +9,7 @@ class SQLiteOffsetInfoReporter(db: OffsetDB, args: OWArgs) extends OffsetInfoRep
     db.insertAll(info)
   }
 
-  override def cleanupOldData() {
+  override def cleanupOldData {
     db.emptyOld(System.currentTimeMillis - args.retain.toMillis)
   }
 

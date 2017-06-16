@@ -1,11 +1,15 @@
 package com.quantifind.kafka.offsetapp
 
 import scala.slick.driver.SQLiteDriver.simple._
-import scala.slick.jdbc.{JdbcBackend, StaticQuery}
+import scala.slick.jdbc.{JdbcBackend, JdbcType, StaticQuery}
 import scala.slick.jdbc.meta.MTable
 import com.quantifind.kafka.OffsetGetter.KafkaOffsetInfo
 import com.quantifind.kafka.offsetapp.OffsetDB.{DbOffsetInfo, OffsetHistory, OffsetPoints}
 import com.twitter.util.Time
+
+import scala.slick.ast.BaseTypedType
+import scala.slick.driver.SQLiteDriver
+import scala.slick.lifted.{Index, MappedProjection, ProvenShape}
 
 /**
   * Tools to store offsets in a DB
@@ -14,9 +18,9 @@ import com.twitter.util.Time
   */
 class OffsetDB(dbfile: String) {
 
-  val database = Database.forURL(s"jdbc:sqlite:$dbfile.db", driver = "org.sqlite.JDBC")
+  val database: SQLiteDriver.backend.DatabaseDef = Database.forURL(s"jdbc:sqlite:$dbfile.db", driver = "org.sqlite.JDBC")
 
-  implicit val twitterTimeMap = MappedColumnType.base[Time, Long](
+  implicit val twitterTimeMap: JdbcType[Time] with BaseTypedType[Time] = MappedColumnType.base[Time, Long](
     {
       time => time.inMillis
     }, {
@@ -25,31 +29,33 @@ class OffsetDB(dbfile: String) {
   )
 
   class Offset(tag: Tag) extends Table[DbOffsetInfo](tag, "OFFSETS") {
-    def id = column[Int]("id", O.PrimaryKey, O.AutoInc)
+    def id: Column[Int] = column[Int]("id", O.PrimaryKey, O.AutoInc)
 
-    val group = column[String]("group")
-    val topic = column[String]("topic")
-    val partition = column[Int]("partition")
-    val offset = column[Long]("offset")
-    val logSize = column[Long]("log_size")
-    val owner = column[Option[String]]("owner")
-    val timestamp = column[Long]("timestamp")
-    val creation = column[Time]("creation")
-    val modified = column[Time]("modified")
+    val group: Column[String] = column[String]("group")
+    val topic: Column[String] = column[String]("topic")
+    val partition: Column[Int] = column[Int]("partition")
+    val offset: Column[Long] = column[Long]("offset")
+    val logSize: Column[Long] = column[Long]("log_size")
+    val owner: Column[Option[String]] = column[Option[String]]("owner")
+    val timestamp: Column[Long] = column[Long]("timestamp")
+    val creation: Column[Time] = column[Time]("creation")
+    val modified: Column[Time] = column[Time]("modified")
 
-    def * = (id.?, group, topic, partition, offset, logSize, owner, timestamp, creation, modified).shaped <> (DbOffsetInfo.parse, DbOffsetInfo.unparse)
+    def * : ProvenShape[DbOffsetInfo] = (id.?, group, topic, partition, offset, logSize, owner, timestamp, creation, modified).shaped <> (DbOffsetInfo.parse, DbOffsetInfo.unparse)
 
-    def forHistory = (timestamp, partition, owner, offset, logSize) <> (OffsetPoints.tupled, OffsetPoints.unapply)
+    def forHistory: MappedProjection[OffsetPoints, (Long, Int, Option[String], Long, Long)] = (timestamp, partition, owner, offset, logSize) <> (OffsetPoints.tupled, OffsetPoints.unapply)
 
-    def idx = index("idx_search", (group, topic))
+    def idx: Index = index("idx_search", (group, topic))
 
-    def tidx = index("idx_time", (timestamp))
+    def tidx: Index = {
+      index("idx_time", timestamp)
+    }
 
-    def uidx = index("idx_unique", (group, topic, partition, timestamp), unique = true)
+    def uidx: Index = index("idx_unique", (group, topic, partition, timestamp), unique = true)
 
   }
 
-  val offsets = TableQuery[Offset]
+  val offsets: TableQuery[Offset] = TableQuery[Offset]
 
   def insert(timestamp: Long, info: KafkaOffsetInfo) {
     database.withSession {
