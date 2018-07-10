@@ -2,11 +2,10 @@ package com.quantifind.kafka.core
 
 import com.quantifind.kafka.offsetapp.OffsetGetterArgs
 import com.quantifind.utils.ZkUtilsWrapper
-
 import kafka.api.{OffsetRequest, OffsetResponse, PartitionOffsetsResponse}
 import kafka.common.{OffsetAndMetadata, OffsetMetadata, TopicAndPartition}
-import kafka.coordinator._
 import kafka.consumer.SimpleConsumer
+import kafka.coordinator.GroupTopicPartition
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
 import org.mockito.Matchers._

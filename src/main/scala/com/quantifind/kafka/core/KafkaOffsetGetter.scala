@@ -12,7 +12,7 @@ import com.quantifind.utils.Utils.convertKafkaHostToHostname
 import com.twitter.util.Time
 import kafka.admin.AdminClient
 import kafka.common.{KafkaException, OffsetAndMetadata, OffsetMetadata, TopicAndPartition}
-import kafka.coordinator._
+import kafka.coordinator.{GroupMetadataManager, GroupOverview, GroupTopicPartition, OffsetKey}
 import kafka.utils.Logging
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer._
@@ -122,6 +122,11 @@ object KafkaOffsetGetter extends Logging {
     val props: Properties = new Properties
     props.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, args.kafkaBrokers)
     props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, args.kafkaSecurityProtocol)
+    if(args.kafkaSecurityProtocol.equalsIgnoreCase("SSL")){
+      props.put("ssl.endpoint.identification.algorithm", "")
+      props.put("ssl.truststore.location",args.sslTruststoreLocation )
+      props.put("ssl.truststore.password",args.sslTruststorePWD )
+    }
     props.put(ConsumerConfig.GROUP_ID_CONFIG, group)
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
     props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, "30000")
@@ -139,7 +144,11 @@ object KafkaOffsetGetter extends Logging {
     val props: Properties = new Properties
     props.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, args.kafkaBrokers)
     props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, args.kafkaSecurityProtocol)
-
+    if(args.kafkaSecurityProtocol.equalsIgnoreCase("SSL")){
+      props.put("ssl.endpoint.identification.algorithm", "")
+      props.put("ssl.truststore.location",args.sslTruststoreLocation )
+      props.put("ssl.truststore.password",args.sslTruststorePWD )
+    }
     while (adminClient == null) {
       try {
         info("Creating new Kafka admin client")

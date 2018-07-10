@@ -32,6 +32,12 @@ class OffsetGetterArgs extends FieldArgs {
 
   var kafkaSecurityProtocol = "PLAINTEXT"
 
+  var sslTruststoreLocation: String = _
+
+  var sslTruststorePWD = "changeit"
+
+  var bootstrapServers = "localhost:10110"
+
   @Required
   var zk: String = _
 
